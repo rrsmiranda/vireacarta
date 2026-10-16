@@ -282,7 +282,7 @@ function telaAjustes(): string {
       <button class="switch" data-act="toggleSom" aria-pressed="${S.som}" aria-label="Ativar ou desativar sons"></button>
     </div>
     <div class="set-row">
-      <span>Música da tela inicial</span>
+      <span>Música</span>
       <button class="switch" data-act="toggleMusica" aria-pressed="${S.musica}" aria-label="Ativar ou desativar a música"></button>
     </div>
   </div>
@@ -408,22 +408,51 @@ function ligar() {
   };
 }
 
-/* ================= música da tela inicial ================= */
+/* ================= música ================= */
+// Toca em todo o jogo: mais alta na tela inicial, baixinha durante a partida e quase
+// muda enquanto o vídeo de um candidato está tocando. O volume passa por um GainNode
+// (Web Audio) porque o Safari do iPhone ignora a propriedade volume do <audio>.
 const musica = new Audio(`${import.meta.env.BASE_URL}audio/musica-inicio.m4a`);
 musica.loop = true;
-musica.volume = 0.45;
 musica.preload = 'auto';
+const VOLUME = {inicio: 0.45, jogo: 0.14, video: 0.03};
 
-// Toca só na tela inicial, com a música ligada e a página visível.
+let ctxAudio: AudioContext | null = null;
+let ganho: GainNode | null = null;
+function prepararAudio() {
+  if (ctxAudio) return;
+  try {
+    ctxAudio = new AudioContext();
+    ganho = ctxAudio.createGain();
+    ganho.gain.value = 0;
+    ctxAudio.createMediaElementSource(musica).connect(ganho).connect(ctxAudio.destination);
+  } catch { ctxAudio = null; ganho = null; }
+}
+
+function videoTocando(): boolean {
+  const v = app.querySelector<HTMLVideoElement>('video.av-video');
+  return !!v && !v.paused && !v.ended;
+}
+
+// Ajusta volume (com transição suave) e play/pause conforme a tela e o vídeo.
 function atualizarMusica() {
-  const tocar = S.musica && S.tela === 'inicio' && document.visibilityState === 'visible';
-  if (tocar && musica.paused) musica.play().catch(() => { /* aguarda o primeiro toque */ });
-  if (!tocar && !musica.paused) musica.pause();
+  const tocar = S.musica && document.visibilityState === 'visible';
+  if (!tocar) { if (!musica.paused) musica.pause(); return; }
+  prepararAudio();
+  if (ctxAudio?.state === 'suspended') ctxAudio.resume().catch(() => {});
+  const alvo = videoTocando() ? VOLUME.video : S.tela === 'inicio' ? VOLUME.inicio : VOLUME.jogo;
+  if (ganho && ctxAudio) ganho.gain.setTargetAtTime(alvo, ctxAudio.currentTime, 0.25);
+  else musica.volume = alvo;
+  if (musica.paused) musica.play().catch(() => { /* aguarda o primeiro toque */ });
 }
 // O navegador só libera som após um toque: cada toque tenta iniciar, se for o caso.
 addEventListener('pointerdown', atualizarMusica, true);
 addEventListener('keydown', atualizarMusica, true);
 document.addEventListener('visibilitychange', atualizarMusica);
+// Vídeo do candidato começou ou terminou: abaixa ou devolve o volume.
+for (const ev of ['play', 'playing', 'pause', 'ended']) {
+  app.addEventListener(ev, e => { if ((e.target as Element).matches?.('video.av-video')) atualizarMusica(); }, true);
+}
 
 function iconeMusica(ligada: boolean): string {
   const ondas = ligada
