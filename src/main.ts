@@ -87,7 +87,13 @@ app.addEventListener('error', event => {
   const img = event.target;
   // Vídeo indisponível: volta para a foto.
   if (img instanceof HTMLVideoElement) {
-    img.outerHTML = `<img class="av-render" src="${img.poster}" data-capitao="${img.dataset.capitao}" alt="" aria-hidden="true">`;
+    const foto = document.createElement('img');
+    foto.className = 'av-render';
+    foto.src = img.poster;
+    foto.dataset.capitao = img.dataset.capitao ?? '';
+    foto.alt = '';
+    foto.setAttribute('aria-hidden', 'true');
+    img.replaceWith(foto);
     return;
   }
   if (!(img instanceof HTMLImageElement) || !img.matches('.av-render')) return;
