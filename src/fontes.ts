@@ -1,5 +1,6 @@
 /* Reportagens por carta, conferidas pelo responsável pelo conteúdo
-   (planilha vire_a_carta_fontes.xlsx, verificação de 16/10/2026).
+   (planilha vire_a_carta_fontes.xlsx, verificação de 16/10/2026). Cartas 23
+   (nova versão) e 31 a 36: links de busca de 16/10/2026, a conferir.
    tipo: plano = confirma que está no programa; resultado = dado ou avaliação
    favorável; critica = crítica ou ponto de atenção. Gerado a partir da planilha. */
 import type {Link} from './data';
@@ -111,10 +112,9 @@ export const FONTES: Record<number, Link[]> = {
     {veiculo: "NEV-USP", tipo: 'resultado', url: "https://nev.prp.usp.br/projetos/projetos-em-andamento/pesquisa-uso-cameras-corporais-pela-policia-militar-de-sp/"},
   ],
   23: [
-    {veiculo: "Band", tipo: 'plano', url: "https://www.band.com.br/politica/eleicoes/2026/flavio-propoe-limitar-stf-reduzir-maioridade-e-acabar-com-reeleicao-202608131847"},
-    {veiculo: "Agência Brasil", tipo: 'critica', url: "https://agenciabrasil.ebc.com.br/direitos-humanos/noticia/2026-06/entidades-criticam-projeto-que-reduz-maioridade-penal-aprovado-na-ccj"},
-    {veiculo: "Gazeta do Povo", tipo: 'critica', url: "https://www.gazetadopovo.com.br/vida-e-cidadania/cnbb-critica-reducao-da-maioridade-penal-em-meio-a-debate-no-senado/"},
-    {veiculo: "Gazeta Mercantil", tipo: 'critica', url: "https://gazetamercantil.com/flavio-maioridade-penal-pec-seguranca-pt-pl"},
+    {veiculo: "DGABC / Estadão", tipo: 'plano', url: "https://www.dgabc.com.br/Noticia/4341070/flavio-propoe-reformar-judiciario-e-criar-modelo-prisional-inspirado-no-de-el-salvador"},
+    {veiculo: "InfoMoney", tipo: 'plano', url: "https://www.infomoney.com.br/politica/flavio-propoe-castracao-quimica-reducao-de-maioridade-penal-e-mudanca-em-presidios/"},
+    {veiculo: "Bahia Notícias / Folha", tipo: 'critica', url: "https://www.bahianoticias.com.br/folha/noticia/406806-flavio-bolsonaro-encontra-ministro-de-bukele-ignora-violacoes-e-diz-que-ha-poucos-presos-no-brasil"},
   ],
   24: [
     {veiculo: "A Terra é Redonda", tipo: 'critica', url: "https://aterraeredonda.com.br/o-sistema-unico-de-seguranca-publica/"},
@@ -144,5 +144,32 @@ export const FONTES: Record<number, Link[]> = {
   30: [
     {veiculo: "Band", tipo: 'plano', url: "https://www.band.com.br/politica/eleicoes/2026/flavio-propoe-limitar-stf-reduzir-maioridade-e-acabar-com-reeleicao-202608131847"},
     {veiculo: "Agência Pública", tipo: 'critica', url: "https://apublica.org/2026/10/stf-pode-ser-enfraquecido-por-interesses-politicos-se-flavio-for-eleito-avaliam-juristas/"},
+  ],
+  31: [
+    {veiculo: "SBT News", tipo: 'plano', url: "https://sbtnews.sbt.com.br/noticia/eleicoes/saude-veja-propostas-de-lula-na-integra"},
+    {veiculo: "Futuro da Saúde", tipo: 'plano', url: "https://futurodasaude.com.br/planos-para-a-saude-candidatos-presidencia/"},
+    {veiculo: "Jornal do Brasil", tipo: 'resultado', url: "https://www.jb.com.br/brasil/politica/2026/05/1059637-governo-anuncia-rs-22-bi-para-tratamentos-contra-o-cancer-pelo-sus.html"},
+    {veiculo: "Gazeta do Povo", tipo: 'critica', url: "https://www.gazetadopovo.com.br/republica/como-lula-usa-o-tratamento-de-cancer-como-estrategia-politica-para-2026/"},
+  ],
+  32: [
+    {veiculo: "SBT News", tipo: 'plano', url: "https://sbtnews.sbt.com.br/noticia/eleicoes/saude-veja-propostas-de-lula-na-integra"},
+    {veiculo: "Futuro da Saúde", tipo: 'plano', url: "https://futurodasaude.com.br/planos-para-a-saude-candidatos-presidencia/"},
+  ],
+  33: [
+    {veiculo: "SBT News", tipo: 'plano', url: "https://sbtnews.sbt.com.br/noticia/eleicoes/saude-veja-propostas-de-flavio-na-integra"},
+    {veiculo: "Futuro da Saúde", tipo: 'plano', url: "https://futurodasaude.com.br/planos-para-a-saude-candidatos-presidencia/"},
+  ],
+  34: [
+    {veiculo: "SBT News", tipo: 'plano', url: "https://sbtnews.sbt.com.br/noticia/eleicoes/saude-veja-propostas-de-flavio-na-integra"},
+    {veiculo: "Futuro da Saúde", tipo: 'plano', url: "https://futurodasaude.com.br/planos-para-a-saude-candidatos-presidencia/"},
+  ],
+  35: [
+    {veiculo: "O Povo", tipo: 'resultado', url: "https://www.opovo.com.br/noticias/ceara/2026/07/29/66-das-criancas-brasileiras-sao-alfabetizadas-na-idade-certa.html"},
+    {veiculo: "O Liberal", tipo: 'resultado', url: "https://www.oliberal.com/politica/brasil-atinge-meta-com-66-das-criancas-alfabetizadas-em-idade-certa-1.1100828"},
+    {veiculo: "Itatiaia", tipo: 'critica', url: "https://www.itatiaia.com.br/educacao/alfabetizacao-no-brasil-seis-estados-nao-conseguiram-cumprir-meta-de-2025/"},
+  ],
+  36: [
+    {veiculo: "Congresso em Foco", tipo: 'resultado', url: "https://www.congressoemfoco.com.br/noticia/119194/reajuste-de-5-4-no-piso-salarial-dos-professores-vai-a-sancao"},
+    {veiculo: "Exame", tipo: 'resultado', url: "https://exame.com/brasil/piso-dos-professores-e-salario-minimo-em-2026-qual-teve-o-maior-reajuste/"},
   ]
 };

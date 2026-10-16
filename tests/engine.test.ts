@@ -29,7 +29,7 @@ test('cada carta aponta para a página do programa oficial no TSE', () => {
   assert.ok(linkPrograma(CARTAS.find(c => c.id === 5)!).includes('proposta-pl.pdf#page=44'));
   assert.ok(Object.keys(FONTES).every(id => CARTAS.some(c => c.id === Number(id))), 'fonte sem carta');
   assert.ok(CARTAS.flatMap(fontesDa).every(l => l.url.startsWith('https://') && l.veiculo && ['plano', 'resultado', 'critica'].includes(l.tipo)));
-  assert.equal(CARTAS.filter(c => c.id <= 30).filter(c => fontesDa(c).length === 0).length, 0, 'cartas 1 a 30 com imprensa');
+  assert.equal(CARTAS.filter(c => fontesDa(c).length === 0).length, 0, 'todas as cartas com imprensa');
   assert.ok(CARTAS.every(c => c.equipe === 'aurora' || !c.revelacao), 'dado de revelação só nas cartas do Lula');
 });
 

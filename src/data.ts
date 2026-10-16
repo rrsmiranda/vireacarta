@@ -71,14 +71,14 @@ export const TEMAS: InfoTema[] = [
     id: 'seguranca', nome: 'Segurança', icone: 'seguranca',
     comparacao: {
       aurora: 'Asfixiar o dinheiro das facções, controlar armas e munições e integrar as polícias num sistema único.',
-      orbita: 'Reduzir a maioridade penal para 16 anos, abater quem estiver armado com fuzil e construir presídios no modelo de El Salvador.'
+      orbita: 'Construir presídios no modelo de El Salvador e abater quem estiver armado com fuzil.'
     }
   },
   {
     id: 'saude', nome: 'Saúde', icone: 'saude',
     comparacao: {
-      aurora: 'Fortalecer o SUS público: remédios e exames de graça na Farmácia Popular e uma rede pública de tratamento do câncer.',
-      orbita: 'Contratar a rede privada para fazer exames e serviços do SUS nos horários ociosos.'
+      aurora: 'SUS público e remédio de graça: Farmácia Popular 100% gratuita e rede pública de tratamento do câncer.',
+      orbita: 'Comprar serviços e exames da rede privada, nos horários ociosos, para atender pacientes do SUS.'
     }
   },
   {
@@ -196,14 +196,14 @@ export const CARTAS: Carta[] = [
     resumo: 'O programa amplia o incentivo ao uso de câmeras corporais, com padrões nacionais para uso e guarda das imagens.'
   },
   {
-    id: 23, tema: 'seguranca', equipe: 'orbita', paginas: [13],
-    texto: 'Reduzir a maioridade penal para 16 anos e punir a partir dos 14 em crimes graves.',
-    resumo: 'O programa promete apoiar e sancionar a redução da maioridade penal de 18 para 16 anos. Especialistas ouvidos pela imprensa chamaram as medidas de "populismo penal".'
+    id: 23, tema: 'seguranca', equipe: 'orbita', paginas: [14],
+    texto: 'Construir 5 presídios de segurança máxima no modelo de El Salvador, chamados de "TREVA".',
+    resumo: 'O programa prevê 5 novos presídios no modelo de El Salvador que, com os 5 federais atuais, formariam o complexo TREVA, sem celular e sem visita íntima, e meio milhão de novas vagas em 4 anos.'
   },
   {
     id: 24, tema: 'seguranca', equipe: 'orbita', paginas: [13],
     texto: '"Bandido armado com fuzil na mão vai ser abatido pelas forças de segurança."',
-    resumo: 'A frase é literal do programa, na seção que declara as facções "organizações narcoterroristas" e prevê 5 presídios no modelo de El Salvador.'
+    resumo: 'A frase é literal do programa, na seção que declara PCC, CV e milícias "organizações narcoterroristas" e propõe reduzir a maioridade penal para 16 anos.'
   },
 
   /* ===== Saúde ===== */
