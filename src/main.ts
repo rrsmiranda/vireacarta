@@ -51,14 +51,15 @@ const esc = (s: unknown) => String(s ?? '').replace(/[&<>"']/g, c => (
 const say = (t: string) => { live.textContent = ''; setTimeout(() => { live.textContent = t; }, 30); };
 
 /* ================= avatares ================= */
-// Vídeos de corpo inteiro exibidos na revelação, no lugar da foto.
-const VIDEOS: Partial<Record<Equipe, string>> = {aurora: 'personagem_aurora.mp4?v=3', orbita: 'personagem_orbita.mp4'};
+// Vídeos de corpo inteiro exibidos na revelação, no lugar da foto. Os dois têm o mesmo
+// formato (1152x720, laterais estendidas com o fundo) para preencher o quadro da carta.
+const VIDEOS: Partial<Record<Equipe, string>> = {aurora: 'personagem_aurora.mp4?v=4', orbita: 'personagem_orbita.mp4?v=2'};
 
 function frameAvatar(equipe: Equipe, corpoInteiro = false): string {
   const foto = `${import.meta.env.BASE_URL}art/personagem_${equipe}.jpeg?v=2`;
   const video = corpoInteiro ? VIDEOS[equipe] : undefined;
   const midia = video
-    ? `<video class="av-render av-video" src="${import.meta.env.BASE_URL}art/${video}" poster="${foto}" data-capitao="${equipe}" autoplay playsinline preload="auto" aria-hidden="true"></video>`
+    ? `<video class="av-render av-video" src="${import.meta.env.BASE_URL}art/${video}" poster="${import.meta.env.BASE_URL}art/video_${equipe}.jpg?v=1" data-capitao="${equipe}" autoplay playsinline preload="auto" aria-hidden="true"></video>`
     : `<img class="av-render" src="${foto}" data-capitao="${equipe}" alt="" aria-hidden="true" decoding="async">`;
   return `<div class="frame ${corpoInteiro ? 'fullbody' : 'portrait'}">${avatarSVG[equipe]()}${midia}</div>`;
 }
