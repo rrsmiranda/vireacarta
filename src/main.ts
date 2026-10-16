@@ -17,6 +17,7 @@ interface Sessao {
   partida: Partida | null;
   reduce: boolean;
   som: boolean;
+  musica: boolean;
 }
 
 const CHAVE = 'vire-a-carta:v2';
@@ -25,7 +26,8 @@ const S: Sessao = {
   tela: 'inicio',
   partida: null,
   reduce: matchMedia('(prefers-reduced-motion: reduce)').matches,
-  som: true
+  som: true,
+  musica: true
 };
 
 function carregarPrefs() {
@@ -33,11 +35,12 @@ function carregarPrefs() {
     const raw = JSON.parse(localStorage.getItem(CHAVE) ?? '{}');
     if (typeof raw.reduce === 'boolean') S.reduce = raw.reduce;
     if (typeof raw.som === 'boolean') S.som = raw.som;
+    if (typeof raw.musica === 'boolean') S.musica = raw.musica;
   } catch { /* primeira visita */ }
   sfx.setSom(S.som);
 }
 function salvarPrefs() {
-  try { localStorage.setItem(CHAVE, JSON.stringify({reduce: S.reduce, som: S.som})); } catch { /* sem storage */ }
+  try { localStorage.setItem(CHAVE, JSON.stringify({reduce: S.reduce, som: S.som, musica: S.musica})); } catch { /* sem storage */ }
 }
 
 /* ================= DOM base ================= */
@@ -53,7 +56,7 @@ const say = (t: string) => { live.textContent = ''; setTimeout(() => { live.text
 /* ================= avatares ================= */
 // Vídeos de corpo inteiro exibidos na revelação, no lugar da foto. Os dois têm o mesmo
 // formato (1152x720, laterais estendidas com o fundo) para preencher o quadro da carta.
-const VIDEOS: Partial<Record<Equipe, string>> = {aurora: 'personagem_aurora.mp4?v=4', orbita: 'personagem_orbita.mp4?v=2'};
+const VIDEOS: Partial<Record<Equipe, string>> = {aurora: 'personagem_aurora.mp4?v=5', orbita: 'personagem_orbita.mp4?v=2'};
 
 function frameAvatar(equipe: Equipe, corpoInteiro = false): string {
   const foto = `${import.meta.env.BASE_URL}art/personagem_${equipe}.jpeg?v=2`;
@@ -115,6 +118,7 @@ const COMUNIDADE_URL = 'https://www.whatsapp.com/channel/0029VbCbRfD7tkj88k3soZ0
 /* ================= telas ================= */
 function telaInicio(): string {
   return `
+  <button class="music-button" data-act="toggleMusica" aria-pressed="${S.musica}" aria-label="${S.musica ? 'Desligar música' : 'Ligar música'}" title="${S.musica ? 'Desligar música' : 'Ligar música'}">${iconeMusica(S.musica)}</button>
   <button class="settings-button" data-go="ajustes" aria-label="Ajustes" title="Ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 3-.5 3-2 1-2.5-1-2 4 2.5 2v2L2 16l2 4 3-1 2 1 .5 2h5l.5-2 2-1 3 1 2-4-2.5-2v-2l2.5-2-2-4-2.5 1-2-1-.5-3Z"/><circle cx="12" cy="12" r="3"/></svg></button>
   <header class="logo" aria-label="Vire a Carta — Presidente 2026">
     <svg class="crown" viewBox="0 0 48 32" fill="currentColor" aria-hidden="true">
@@ -277,6 +281,10 @@ function telaAjustes(): string {
       <span>Sons</span>
       <button class="switch" data-act="toggleSom" aria-pressed="${S.som}" aria-label="Ativar ou desativar sons"></button>
     </div>
+    <div class="set-row">
+      <span>Música da tela inicial</span>
+      <button class="switch" data-act="toggleMusica" aria-pressed="${S.musica}" aria-label="Ativar ou desativar a música"></button>
+    </div>
   </div>
   <div class="panel">
     <h3>Sobre este baralho</h3>
@@ -307,6 +315,7 @@ function render(foco = true) {
   app.innerHTML = telas[S.tela]();
   ligar();
   if (foco) app.querySelector<HTMLElement>('[data-focus]')?.focus({preventScroll: true});
+  atualizarMusica();
 }
 
 /* ================= eventos ================= */
@@ -362,6 +371,7 @@ function ligar() {
       const a = b.dataset.act;
       const p = S.partida;
       if (a === 'toggleReduce') { S.reduce = !S.reduce; salvarPrefs(); render(false); return; }
+      if (a === 'toggleMusica') { S.musica = !S.musica; salvarPrefs(); render(false); return; }
       if (a === 'toggleSom') { S.som = !S.som; sfx.setSom(S.som); salvarPrefs(); render(false); if (S.som) sfx.somEscolha(); return; }
       if (a === 'sair') { registrarAbandono(); S.partida = null; sfx.somClique(); irPara('inicio'); return; }
       if (a === 'iniciar' || a === 'recomecar') { sfx.somClique(); iniciarPartida(); return; }
@@ -396,6 +406,30 @@ function ligar() {
       el.hidden = t.length > 0 && !el.dataset.busca!.includes(t);
     });
   };
+}
+
+/* ================= música da tela inicial ================= */
+const musica = new Audio(`${import.meta.env.BASE_URL}audio/musica-inicio.m4a`);
+musica.loop = true;
+musica.volume = 0.45;
+musica.preload = 'auto';
+
+// Toca só na tela inicial, com a música ligada e a página visível.
+function atualizarMusica() {
+  const tocar = S.musica && S.tela === 'inicio' && document.visibilityState === 'visible';
+  if (tocar && musica.paused) musica.play().catch(() => { /* aguarda o primeiro toque */ });
+  if (!tocar && !musica.paused) musica.pause();
+}
+// O navegador só libera som após um toque: cada toque tenta iniciar, se for o caso.
+addEventListener('pointerdown', atualizarMusica, true);
+addEventListener('keydown', atualizarMusica, true);
+document.addEventListener('visibilitychange', atualizarMusica);
+
+function iconeMusica(ligada: boolean): string {
+  const ondas = ligada
+    ? '<path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/>'
+    : '<path d="m16 9 6 6"/><path d="m22 9-6 6"/>';
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9h3l5-4v14l-5-4H4Z" fill="currentColor"/>${ondas}</svg>`;
 }
 
 /* ================= métricas ================= */

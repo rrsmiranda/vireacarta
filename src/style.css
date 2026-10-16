@@ -626,3 +626,13 @@ select, input[type="text"] {
 /* Revelação: os vídeos (laterais já estendidas com o fundo) preenchem o quadro da carta;
    o corte nas telas mais estreitas cai só nas bordas estendidas. */
 .frame.fullbody .av-video { object-fit: cover; object-position: center; border-radius: 12px; }
+
+/* Botão de música (tela inicial, canto superior esquerdo, espelhando a engrenagem) */
+.music-button {
+  position: absolute; top: max(8px, env(safe-area-inset-top)); left: 0;
+  width: 44px; height: 44px; display: grid; place-items: center; z-index: 2;
+  background: var(--surface); border: 1px solid #ffffff30; border-radius: 14px; color: var(--ink);
+  animation: fadeUp .5s ease-out .2s both;
+}
+.music-button svg { width: 23px; height: 23px; }
+.music-button[aria-pressed="false"] { color: var(--muted); }
