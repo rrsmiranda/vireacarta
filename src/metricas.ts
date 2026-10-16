@@ -1,6 +1,7 @@
 /* Métricas anônimas de uso com Umami (sem cookies, sem dados pessoais).
-   Só liga quando VITE_UMAMI_WEBSITE_ID está definido — configurado na Vercel.
-   Em desenvolvimento, sem a variável, nada é carregado nem enviado. */
+   Liga só no build de produção (npm run build / Vercel), com o ID do site
+   "Vire a Carta" no Umami Cloud. VITE_UMAMI_WEBSITE_ID, se definido, substitui
+   esse ID. Em desenvolvimento (npm run dev) nada é carregado nem enviado. */
 
 type Dados = Record<string, string | number | boolean>;
 
@@ -8,7 +9,8 @@ declare global {
   interface Window { umami?: { track: (evento: string, dados?: Dados) => void } }
 }
 
-const ID = import.meta.env.VITE_UMAMI_WEBSITE_ID;
+const ID_PADRAO = '03a68a9a-720f-4a4d-875a-f2ea75d1bf98';
+const ID = import.meta.env.VITE_UMAMI_WEBSITE_ID || (import.meta.env.PROD ? ID_PADRAO : undefined);
 const SCRIPT = import.meta.env.VITE_UMAMI_SCRIPT_URL || 'https://cloud.umami.is/script.js';
 
 export function iniciarMetricas(): void {

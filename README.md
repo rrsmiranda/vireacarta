@@ -66,12 +66,10 @@ public/art/         slots para renders do Blender
 
 ## Métricas de uso (Umami)
 
-Métricas anônimas, sem cookies, em `src/metricas.ts`. Ficam desligadas até existir a
-variável `VITE_UMAMI_WEBSITE_ID` (ver `.env.example`).
-
-1. Crie uma conta em https://cloud.umami.is e adicione o site (domínio da Vercel).
-2. Copie o **Website ID** e, na Vercel, cadastre `VITE_UMAMI_WEBSITE_ID` em
-   Settings → Environment Variables (ambiente Production). Faça um novo deploy.
+Métricas anônimas, sem cookies, em `src/metricas.ts`. Ligam só no build de produção
+(Vercel), com o Website ID do site "Vire a Carta" no Umami Cloud já definido no código.
+Em `npm run dev` nada é enviado. Para usar outro site do Umami, defina
+`VITE_UMAMI_WEBSITE_ID` na Vercel (ver `.env.example`) e faça um novo deploy.
 
 Eventos enviados:
 
