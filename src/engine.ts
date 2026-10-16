@@ -53,21 +53,32 @@ export function montarBaralho(baralho: Carta[], semente: number, tamanho = 10): 
   return embaralhar(baralho, r).slice(0, Math.min(tamanho, baralho.length));
 }
 
-/* Partida de um tema: só as cartas daquele tema, embaralhadas. */
-export function baralhoDoTema(cartas: Carta[], tema: Tema, semente: number): Carta[] {
-  return embaralhar(cartas.filter(c => c.tema === tema), rng(semente));
+/* Partida de um tema: só as cartas daquele tema, embaralhadas. No modo "todos
+   os temas" a partida fica curta: `porEquipe` limita quantas cartas vêm de cada lado. */
+export function baralhoDoTema(cartas: Carta[], tema: Tema, semente: number, porEquipe?: Record<Equipe, number>): Carta[] {
+  const r = rng(semente);
+  const doTema = cartas.filter(c => c.tema === tema);
+  if (!porEquipe) return embaralhar(doTema, r);
+  const lado = (e: Equipe) => embaralhar(doTema.filter(c => c.equipe === e), r).slice(0, porEquipe[e]);
+  return embaralhar([...lado('aurora'), ...lado('orbita')], r);
+}
+
+export interface Aprovacao { boas: number; total: number }
+
+/* Afinidade do jogador num tema. Cada candidato soma a proporção de cartas suas
+   marcadas como "Boa" (proporção, para o lado com mais cartas não levar vantagem)
+   e mais 1 ponto se ganhou a comparação às cegas. Empate = sem vencedor. */
+export function afinidade(aprov: Record<Equipe, Aprovacao>, escolha: Equipe): {vencedor: Equipe | null; pct: number} {
+  const pontos = (e: Equipe) => (aprov[e].total ? aprov[e].boas / aprov[e].total : 0) + (escolha === e ? 1 : 0);
+  const a = pontos('aurora'), o = pontos('orbita');
+  const pctAurora = Math.round((a / (a + o)) * 100);
+  if (pctAurora === 50) return {vencedor: null, pct: 50};
+  return pctAurora > 50 ? {vencedor: 'aurora', pct: pctAurora} : {vencedor: 'orbita', pct: 100 - pctAurora};
 }
 
 /* Comparação às cegas: sorteia qual candidato aparece como opção A. */
 export function ordemComparacao(semente: number): [Equipe, Equipe] {
   return rng(semente)() < 0.5 ? ['aurora', 'orbita'] : ['orbita', 'aurora'];
-}
-
-/* Placar das comparações às cegas de uma jornada. */
-export function contarEscolhas(escolhas: Partial<Record<Tema, Equipe>>): {aurora: number; orbita: number; total: number} {
-  const valores = Object.values(escolhas);
-  const aurora = valores.filter(e => e === 'aurora').length;
-  return {aurora, orbita: valores.length - aurora, total: valores.length};
 }
 
 export function iniciar(baralho: Carta[]): Partida {

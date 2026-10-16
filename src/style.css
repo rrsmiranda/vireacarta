@@ -707,3 +707,48 @@ select, input[type="text"] {
 .res-lista { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 6px; }
 .res-lista li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: #ffffff0d; font-weight: 700; font-size: 14.5px; }
 .lib-fonte { font-weight: 800; color: var(--orbita); }
+
+/* ===== v2: temas checados, selos e carimbo ===== */
+.tema-btn { position: relative; }
+.tema-btn.checado { border-color: var(--ok); }
+.tema-check {
+  position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; display: grid; place-items: center;
+  border-radius: 50%; font-size: 14px; font-weight: 900; color: var(--bg-deep); background: var(--ok);
+}
+.tema-sub { font-size: 11.5px; font-weight: 700; color: var(--muted); margin-top: -4px; }
+.selo {
+  display: inline-block; padding: 3px 10px; border-radius: 999px; font-family: var(--f-display);
+  font-size: 13px; letter-spacing: .04em; color: #fff; white-space: nowrap;
+}
+.selo-aurora { background: color-mix(in srgb, var(--lula) 70%, #000); box-shadow: 0 0 12px color-mix(in srgb, var(--lula) 45%, transparent); }
+.selo-orbita { background: color-mix(in srgb, var(--orbita) 45%, #000); }
+.selo-empate { background: #ffffff26; }
+
+.carimbo {
+  position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center;
+  padding: 16px 14px 14px; border-radius: 18px; border: 3px solid var(--ok);
+  background: linear-gradient(160deg, #183a33f2, #10261ff2);
+  animation: carimbar .55s cubic-bezier(.2, 1.6, .4, 1) both;
+}
+.carimbo-aurora { border-color: var(--lula); background: linear-gradient(160deg, #4a1a22f2, #2a1016f2); box-shadow: 0 0 26px color-mix(in srgb, var(--lula) 40%, transparent); }
+.carimbo-orbita { border-color: var(--orbita); background: linear-gradient(160deg, #163c4af2, #0e2630f2); }
+.carimbo-check {
+  font-family: var(--f-display); font-size: 26px; letter-spacing: .08em; color: var(--ok);
+  transform: rotate(-4deg); text-shadow: 0 2px 0 #0a1729;
+}
+.carimbo-txt { font-size: 16px; font-weight: 700; }
+.carimbo-aurora .carimbo-txt b { color: color-mix(in srgb, var(--lula) 45%, #fff); }
+.carimbo-orbita .carimbo-txt b { color: color-mix(in srgb, var(--orbita) 50%, #fff); }
+.carimbo-pct { font-family: var(--f-display); font-size: 44px; line-height: 1; color: var(--gold); text-shadow: 0 0 20px color-mix(in srgb, var(--gold) 40%, transparent); }
+.carimbo-esc { font-size: 12.5px; color: var(--muted); }
+@keyframes carimbar { 0% { opacity: 0; transform: scale(1.6) rotate(-8deg); } 100% { opacity: 1; transform: none; } }
+.reduce .carimbo { animation: none; }
+
+/* Rótulo do tipo de fonte na lista de imprensa */
+.press-link { display: flex; align-items: center; gap: 8px; }
+.press-link b { margin-right: auto; }
+.ptipo { flex: 0 0 auto; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; }
+.ptipo-plano { background: #ffffff1f; color: var(--ink); }
+.ptipo-resultado { background: color-mix(in srgb, var(--ok) 25%, transparent); color: var(--ok); }
+.ptipo-critica { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
+.res-lista .selo { font-size: 12px; }

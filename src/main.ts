@@ -1,11 +1,11 @@
 import './style.css';
 import {
-  CARTAS, EQUIPES, TEMAS, linkPrograma, nomeTema, rotuloPaginas,
-  type Carta, type Equipe, type Tema
+  CARTAS, EQUIPES, TEMAS, fontesDa, linkPrograma, nomeTema, rotuloPaginas,
+  type Carta, type Equipe, type Link, type Tema
 } from './data';
 import {
-  avancar, baralhoDoTema, cartaAtual, contarEscolhas, iniciar, ordemComparacao,
-  type Opiniao, type Partida
+  afinidade, avancar, baralhoDoTema, cartaAtual, iniciar, ordemComparacao,
+  type Aprovacao, type Opiniao, type Partida
 } from './engine';
 import {avatarSVG, iconeCategoria} from './avatar';
 import {montarArena} from './arena';
@@ -15,21 +15,27 @@ import * as sfx from './audio';
 /* ================= estado ================= */
 type Tela = 'inicio' | 'temas' | 'rodada' | 'comparacao' | 'fim' | 'biblioteca' | 'ajustes';
 
-/* Sequência de temas jogada de uma vez (um tema ou todos). As escolhas da
-   comparação às cegas ficam só na memória: nada sobre preferência política é salvo. */
+/* Sequência de temas jogada de uma vez (um tema ou todos). */
 interface Jornada {
   temas: Tema[];
   atual: number;
-  escolhas: Partial<Record<Tema, Equipe>>;
-  acertos: number;
-  cartas: number;
+  /** Boa/Ruim do tema em andamento, por candidato. */
+  aprovacao: Record<Equipe, Aprovacao>;
   ordem: [Equipe, Equipe];
 }
+
+/* Resultado de um tema concluído: escolha às cegas e afinidade. Fica só na memória
+   da sessão; no aparelho só se guarda QUE o tema foi checado, nunca o lado. */
+interface ResultadoTema { escolha: Equipe; vencedor: Equipe | null; pct: number }
 
 interface Sessao {
   tela: Tela;
   partida: Partida | null;
   jornada: Jornada | null;
+  resultados: Partial<Record<Tema, ResultadoTema>>;
+  checados: Tema[];
+  acertos: number;
+  cartas: number;
   reduce: boolean;
   som: boolean;
   musica: boolean;
@@ -41,6 +47,10 @@ const S: Sessao = {
   tela: 'inicio',
   partida: null,
   jornada: null,
+  resultados: {},
+  checados: [],
+  acertos: 0,
+  cartas: 0,
   reduce: matchMedia('(prefers-reduced-motion: reduce)').matches,
   som: true,
   musica: true
@@ -52,11 +62,12 @@ function carregarPrefs() {
     if (typeof raw.reduce === 'boolean') S.reduce = raw.reduce;
     if (typeof raw.som === 'boolean') S.som = raw.som;
     if (typeof raw.musica === 'boolean') S.musica = raw.musica;
+    if (Array.isArray(raw.checados)) S.checados = raw.checados.filter((t: unknown) => TEMAS.some(x => x.id === t));
   } catch { /* primeira visita */ }
   sfx.setSom(S.som);
 }
 function salvarPrefs() {
-  try { localStorage.setItem(CHAVE, JSON.stringify({reduce: S.reduce, som: S.som, musica: S.musica})); } catch { /* sem storage */ }
+  try { localStorage.setItem(CHAVE, JSON.stringify({reduce: S.reduce, som: S.som, musica: S.musica, checados: S.checados})); } catch { /* sem storage */ }
 }
 
 /* ================= DOM base ================= */
@@ -167,7 +178,17 @@ function hudSimples(): string {
 
 const temaAtual = (): Tema | null => S.jornada ? S.jornada.temas[S.jornada.atual] : null;
 
+const de = (e: Equipe) => (e === 'aurora' ? 'do' : 'de');
+
+/* Selo do tema: lado com maior afinidade e a porcentagem. */
+function selo(r: ResultadoTema): string {
+  return r.vencedor
+    ? `<span class="selo selo-${r.vencedor}">${EQUIPES[r.vencedor].curto} ${r.pct}%</span>`
+    : '<span class="selo selo-empate">DIVIDIDO 50%</span>';
+}
+
 function telaTemas(): string {
+  const feitos = TEMAS.filter(t => S.resultados[t.id]).length;
   return `
   <div class="hud">
     <button class="back" data-go="inicio" aria-label="Voltar ao início">‹</button>
@@ -176,13 +197,16 @@ function telaTemas(): string {
   <h2 class="q" tabindex="-1">Qual tema você quer debater?</h2>
   <div class="temas" role="list">
     ${TEMAS.map(t => `
-      <button class="tema-btn" role="listitem" data-tema="${t.id}">
+      <button class="tema-btn${S.checados.includes(t.id) ? ' checado' : ''}" role="listitem" data-tema="${t.id}">
+        ${S.checados.includes(t.id) ? '<span class="tema-check" aria-label="Checado">✓</span>' : ''}
         <span class="tema-ico">${iconeCategoria(t.icone)}</span>
         <span class="tema-nome">${esc(t.nome)}</span>
-        <span class="tema-qtd">${CARTAS.filter(c => c.tema === t.id).length} cartas</span>
+        ${t.subtitulo ? `<span class="tema-sub">${esc(t.subtitulo)}</span>` : ''}
+        ${S.resultados[t.id] ? selo(S.resultados[t.id]!) : `<span class="tema-qtd">${CARTAS.filter(c => c.tema === t.id).length} cartas</span>`}
       </button>`).join('')}
   </div>
   <button class="btn-main" data-act="todos" data-focus>TODOS OS TEMAS <span aria-hidden="true">›</span></button>
+  ${feitos ? `<button class="btn-ghost" data-go="fim">Ver meu resultado (${feitos} ${feitos > 1 ? 'temas' : 'tema'})</button>` : ''}
   <p class="demo-note">Em cada tema: avalie as propostas, adivinhe de quem são e, no fim, escolha o melhor caminho.</p>`;
 }
 
@@ -193,7 +217,7 @@ function hudRodada(p: Partida): string {
   return `<div class="hud">
     <button class="back" data-act="sair" aria-label="Sair da partida">✕</button>
     <div class="prog">
-      <small>${tema ? esc(nomeTema(tema)) + ' · ' : ''}Carta ${i}/${total}</small>
+      <small>${tema ? esc(nomeTema(tema)) + ' · ' : 'Carta '}${i}/${total}</small>
       <div class="bar"><i style="width:${((p.indice) / total) * 100}%"></i></div>
     </div>
     <div class="score" aria-label="Acertos">${p.acertos}<small>ACERTOS</small></div>
@@ -211,6 +235,8 @@ function pickBotoes(p: Partida): string {
   </div>`;
 }
 
+const ROTULO_FONTE: Record<Link['tipo'], string> = {plano: 'Confirma', resultado: 'Resultado', critica: 'Crítica'};
+
 /* Evidência da revelação: dado em destaque, resumo, programa oficial e imprensa. */
 function evidencia(c: Carta): string {
   const novaAba = '<span class="sr">(abre em outra aba)</span>';
@@ -220,9 +246,9 @@ function evidencia(c: Carta): string {
     <a class="evidence-link" data-carta="${c.id}" data-tipo="programa" href="${esc(linkPrograma(c))}" target="_blank" rel="noopener noreferrer">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
       <span>Programa oficial · ${rotuloPaginas(c)}</span><span class="ext" aria-hidden="true">↗</span>${novaAba}</a>
-    ${c.imprensa.length ? `<div class="evid-imprensa">
+    ${fontesDa(c).length ? `<div class="evid-imprensa">
       <small>Na imprensa</small>
-      ${c.imprensa.map(l => `<a class="press-link" data-carta="${c.id}" data-tipo="imprensa" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer"><b>${esc(l.veiculo)}</b> ${esc(l.titulo)} <span aria-hidden="true">↗</span>${novaAba}</a>`).join('')}
+      ${fontesDa(c).map(l => `<a class="press-link" data-carta="${c.id}" data-tipo="imprensa" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer"><span class="ptipo ptipo-${l.tipo}">${ROTULO_FONTE[l.tipo]}</span><b>${esc(l.veiculo)}</b><span aria-hidden="true">↗</span>${novaAba}</a>`).join('')}
     </div>` : ''}
   </section>`;
 }
@@ -231,7 +257,8 @@ function telaComparacao(): string {
   const j = S.jornada!;
   const tema = temaAtual()!;
   const info = TEMAS.find(t => t.id === tema)!;
-  const escolha = j.escolhas[tema];
+  const r = S.resultados[tema];
+  const escolha = r?.escolha;
   const opcoes = j.ordem.map((e, i) => {
     const letra = i === 0 ? 'A' : 'B';
     const nome = escolha ? `<span class="cmp-nome cmp-${e}">${EQUIPES[e].curto}</span>` : '';
@@ -241,6 +268,12 @@ function telaComparacao(): string {
     </button>`;
   }).join('');
   const ultimo = j.atual + 1 >= j.temas.length;
+  const avancar = !ultimo
+    ? '<button class="btn-main" data-act="proximoTema" data-focus>PRÓXIMO TEMA <span aria-hidden="true">›</span></button>'
+    : j.temas.length > 1
+      ? '<button class="btn-main" data-act="proximoTema" data-focus>VER RESULTADO <span aria-hidden="true">›</span></button>'
+      : `<button class="btn-main" data-go="temas" data-focus>ESCOLHER OUTRO TEMA <span aria-hidden="true">›</span></button>
+         <button class="btn-ghost" data-go="fim">Ver meu resultado</button>`;
   return `
   <div class="hud">
     <button class="back" data-act="sair" aria-label="Sair da partida">✕</button>
@@ -249,8 +282,21 @@ function telaComparacao(): string {
   <h2 class="q" tabindex="-1" data-focus>Qual caminho você prefere para <span class="q-tema">${esc(info.nome.toLowerCase())}</span>?</h2>
   <p class="hint">${escolha ? 'Agora você sabe de quem é cada proposta.' : 'Os nomes só aparecem depois da sua escolha.'}</p>
   <div class="cmp" role="group" aria-label="Opções">${opcoes}</div>
-  ${escolha ? `<p class="cmp-veredito cmp-${escolha}" role="status">Você escolheu a proposta ${escolha === 'aurora' ? 'do' : 'de'} <b>${EQUIPES[escolha].nome}</b>.</p>
-  <button class="btn-main" data-act="proximoTema" data-focus>${ultimo ? 'VER RESULTADO' : 'PRÓXIMO TEMA'} <span aria-hidden="true">›</span></button>` : ''}`;
+  ${r ? `${carimbo(r, info.nome)}
+  ${avancar}` : ''}`;
+}
+
+/* Carimbo de tema concluído: "Checado!" e o lado com maior afinidade. */
+function carimbo(r: ResultadoTema, nome: string): string {
+  const texto = r.vencedor
+    ? `Em ${esc(nome.toLowerCase())}, você está mais para <b>${EQUIPES[r.vencedor].nome}</b>`
+    : `Em ${esc(nome.toLowerCase())}, você está dividido`;
+  return `<div class="carimbo${r.vencedor ? ' carimbo-' + r.vencedor : ''}" role="status">
+    <span class="carimbo-check">✓ CHECADO!</span>
+    <span class="carimbo-txt">${texto}</span>
+    <span class="carimbo-pct">${r.pct}%</span>
+    <span class="carimbo-esc">Na comparação, você escolheu a proposta ${de(r.escolha)} ${EQUIPES[r.escolha].nome}.</span>
+  </div>`;
 }
 
 function telaRodada(p: Partida): string {
@@ -301,30 +347,38 @@ function frenteCarta(c: Carta): string {
     </div>`;
 }
 
-function textoResultado(j: Jornada): string {
-  const {aurora, total} = contarEscolhas(j.escolhas);
+/* Placar da sessão: em quantos temas cada candidato teve a maior afinidade. */
+function placarSessao() {
+  const feitos = TEMAS.filter(t => S.resultados[t.id]).map(t => ({tema: t, r: S.resultados[t.id]!}));
+  const lula = feitos.filter(f => f.r.vencedor === 'aurora').length;
+  return {feitos, lula, total: feitos.length};
+}
+
+function textoResultado(): string {
+  const {feitos, lula, total} = placarSessao();
   if (total === 1) {
-    const e = Object.values(j.escolhas)[0]!;
-    return `Em <b>${esc(nomeTema(j.temas[0]))}</b>, você escolheu o caminho ${e === 'aurora' ? 'do' : 'de'} <b class="res-${e}">${EQUIPES[e].nome}</b>.`;
+    const {tema, r} = feitos[0];
+    return r.vencedor
+      ? `Em <b>${esc(tema.nome)}</b>, você está mais para <b class="res-${r.vencedor}">${EQUIPES[r.vencedor].nome}</b> (${r.pct}%).`
+      : `Em <b>${esc(tema.nome)}</b>, você ficou dividido.`;
   }
-  return `Você escolheu as propostas do <b class="res-aurora">Lula</b> em <b class="res-num">${aurora} de ${total}</b> temas.`;
+  return `Você está mais para o <b class="res-aurora">Lula</b> em <b class="res-num">${lula} de ${total}</b> temas.`;
 }
 
 function telaFim(): string {
-  const j = S.jornada!;
-  const linhas = j.temas.filter(t => j.escolhas[t]).map(t => {
-    const e = j.escolhas[t]!;
-    return `<li><span>${esc(nomeTema(t))}</span><span class="pill pill-${e}">${EQUIPES[e].curto}</span></li>`;
-  }).join('');
+  const {feitos} = placarSessao();
+  if (!feitos.length) return telaTemas();
+  const linhas = feitos.map(({tema, r}) => `<li><span>${esc(tema.nome)}</span>${selo(r)}</li>`).join('');
   return `
   ${hudSimples()}
   <div class="panel res-panel" style="text-align:center;align-items:center">
     <h2>Resultado</h2>
-    <p class="res-txt">${textoResultado(j)}</p>
-    ${j.temas.length > 1 ? `<ul class="res-lista">${linhas}</ul>` : ''}
-    <p>Você acertou de quem era a proposta em ${j.acertos} de ${j.cartas} cartas.</p>
+    <p class="res-txt">${textoResultado()}</p>
+    ${feitos.length > 1 ? `<ul class="res-lista">${linhas}</ul>` : ''}
+    <p>Você acertou de quem era a proposta em ${S.acertos} de ${S.cartas} cartas.</p>
+    ${feitos.length < TEMAS.length ? `<p>Faltam ${TEMAS.length - feitos.length} temas para completar o debate.</p>` : ''}
   </div>
-  <button class="btn-main" data-go="temas" data-focus>JOGAR OUTRO TEMA <span aria-hidden="true">›</span></button>
+  <button class="btn-main" data-go="temas" data-focus>${feitos.length < TEMAS.length ? 'JOGAR OUTRO TEMA' : 'VOLTAR AOS TEMAS'} <span aria-hidden="true">›</span></button>
   <div class="row">
     <button class="btn-ghost" data-go="biblioteca">Ver todas as cartas</button>
     <button class="btn-ghost" data-act="compartilhar" id="btn-share">Copiar resultado</button>
@@ -423,26 +477,33 @@ function irPara(tela: Tela) {
 
 const novaSemente = () => (Date.now() ^ (Math.random() * 1e9)) >>> 0;
 
+const aprovacaoVazia = (): Record<Equipe, Aprovacao> => ({aurora: {boas: 0, total: 0}, orbita: {boas: 0, total: 0}});
+
+/* No modo "todos os temas", cada tema tem 4 cartas (3 do Lula e 1 do Flávio). */
+const CURTO: Record<Equipe, number> = {aurora: 3, orbita: 1};
+
 /* Começa uma jornada: um tema só ou todos, na ordem de TEMAS. */
 function iniciarJornada(temas: Tema[]) {
-  S.jornada = {temas, atual: 0, escolhas: {}, acertos: 0, cartas: 0, ordem: ['aurora', 'orbita']};
+  S.jornada = {temas, atual: 0, aprovacao: aprovacaoVazia(), ordem: ['aurora', 'orbita']};
   registrar('jogo_iniciado', {temas: temas.length === 1 ? temas[0] : 'todos'});
   comecarTema();
 }
 
 function comecarTema() {
+  const j = S.jornada!;
   const tema = temaAtual()!;
-  S.partida = iniciar(baralhoDoTema(CARTAS, tema, novaSemente()));
+  delete S.resultados[tema]; // jogar de novo refaz o resultado do tema
+  j.aprovacao = aprovacaoVazia();
+  S.partida = iniciar(baralhoDoTema(CARTAS, tema, novaSemente(), j.temas.length > 1 ? CURTO : undefined));
   registrar('tema_iniciado', {tema});
   irPara('rodada');
 }
 
 /* Fim das cartas do tema: soma os acertos e abre a comparação às cegas. */
 function concluirCartasDoTema(p: Partida) {
-  const j = S.jornada!;
-  j.acertos += p.acertos;
-  j.cartas += p.baralho.length;
-  j.ordem = ordemComparacao(novaSemente());
+  S.acertos += p.acertos;
+  S.cartas += p.baralho.length;
+  S.jornada!.ordem = ordemComparacao(novaSemente());
   irPara('comparacao');
 }
 
@@ -462,13 +523,16 @@ function ligar() {
     b.onclick = () => {
       const j = S.jornada;
       const tema = temaAtual();
-      if (!j || !tema || j.escolhas[tema]) return;
+      if (!j || !tema || S.resultados[tema]) return;
       const escolha = b.dataset.comparar as Equipe;
-      j.escolhas[tema] = escolha;
-      registrar('comparacao', {tema, escolha: EQUIPES[escolha].nome});
-      sfx.somEscolha();
+      const r = {escolha, ...afinidade(j.aprovacao, escolha)};
+      S.resultados[tema] = r;
+      if (!S.checados.includes(tema)) { S.checados.push(tema); salvarPrefs(); }
+      registrar('comparacao', {tema, escolha: EQUIPES[escolha].nome, afinidade: r.vencedor ? EQUIPES[r.vencedor].nome : 'dividido'});
+      sfx.somAcerto();
       render();
-      say(`Você escolheu a proposta de ${EQUIPES[escolha].nome}.`);
+      app.querySelector('.carimbo')?.scrollIntoView({block: 'center', behavior: S.reduce ? 'auto' : 'smooth'});
+      say(r.vencedor ? `Checado! Você está mais para ${EQUIPES[r.vencedor].nome}, ${r.pct}%.` : 'Checado! Você está dividido neste tema.');
     };
   });
 
@@ -478,6 +542,8 @@ function ligar() {
       sfx.somClique();
       if (!S.partida || !['leitura', 'opiniao'].includes(S.partida.etapa)) return;
       S.partida = avancar(avancar(S.partida, {tipo: 'iniciarOpiniao'}), {tipo: 'opiniao', valor: b.dataset.opiniao as Opiniao});
+      const lado = S.jornada?.aprovacao[cartaAtual(S.partida)!.equipe];
+      if (lado) { lado.total++; if (b.dataset.opiniao === 'boa') lado.boas++; }
       registrar('opiniao', {carta: cartaAtual(S.partida)!.id, opiniao: b.dataset.opiniao!});
       render();
     };
@@ -515,18 +581,20 @@ function ligar() {
         if (!j) return;
         sfx.somClique();
         if (j.atual + 1 < j.temas.length) { j.atual++; comecarTema(); return; }
-        const {aurora, total} = contarEscolhas(j.escolhas);
-        registrar('partida_concluida', {temas: total, lula: aurora, acertos: j.acertos, cartas: j.cartas});
+        const {lula, total} = placarSessao();
+        registrar('partida_concluida', {temas: total, lula, acertos: S.acertos, cartas: S.cartas});
         sfx.somFim(); irPara('fim');
         return;
       }
       if (a === 'compartilhar') {
-        const j = S.jornada;
-        if (!j) return;
-        const {aurora, total} = contarEscolhas(j.escolhas);
+        const {feitos, lula, total} = placarSessao();
+        if (!total) return;
+        const r = feitos[0].r;
         const msg = total > 1
-          ? `Fiz o teste às cegas no Vire a Carta e escolhi as propostas do Lula em ${aurora} de ${total} temas. Faça o seu: ${location.origin}`
-          : `Joguei Vire a Carta e acertei ${j.acertos} de ${j.cartas} propostas. Descubra quem defende cada proposta: ${location.origin}`;
+          ? `Joguei o Vire a Carta e estou mais para o Lula em ${lula} de ${total} temas. Faça o seu: ${location.origin}`
+          : r.vencedor
+            ? `Joguei o Vire a Carta: em ${feitos[0].tema.nome}, estou mais para ${EQUIPES[r.vencedor].nome} (${r.pct}%). Faça o seu: ${location.origin}`
+            : `Joguei o Vire a Carta e acertei ${S.acertos} de ${S.cartas} propostas. Faça o seu: ${location.origin}`;
         const alvo = document.getElementById('sharemsg');
         navigator.clipboard?.writeText(msg).then(
           () => { if (alvo) alvo.textContent = 'Resultado copiado!'; },

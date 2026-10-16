@@ -1,13 +1,15 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  avancar, baralhoDoTema, cartaAtual, contarEscolhas, embaralhar, iniciar, montarBaralho, ordemComparacao, rng, percentual
+  afinidade, avancar, baralhoDoTema, cartaAtual, embaralhar, iniciar, montarBaralho, ordemComparacao, rng, percentual
 } from '../src/engine.ts';
-import {CARTAS, TEMAS, linkPrograma} from '../src/data.ts';
+import {CARTAS, TEMAS, fontesDa, linkPrograma} from '../src/data.ts';
+import {FONTES} from '../src/fontes.ts';
 
-test('baralho v2: 30 cartas, 6 por tema (4 do Lula e 2 do Flávio), ids únicos', () => {
-  assert.equal(CARTAS.length, 30);
-  assert.equal(new Set(CARTAS.map(c => c.id)).size, 30);
+test('baralho v2: 36 cartas em 6 temas, 6 por tema (4 do Lula e 2 do Flávio), ids únicos', () => {
+  assert.equal(TEMAS.length, 6);
+  assert.equal(CARTAS.length, 36);
+  assert.equal(new Set(CARTAS.map(c => c.id)).size, 36);
   for (const t of TEMAS) {
     const doTema = CARTAS.filter(c => c.tema === t.id);
     assert.equal(doTema.length, 6, t.id);
@@ -25,7 +27,9 @@ test('cada carta aponta para a página do programa oficial no TSE', () => {
   }
   assert.ok(linkPrograma(CARTAS.find(c => c.id === 1)!).includes('proposta-pt.pdf#page=75'));
   assert.ok(linkPrograma(CARTAS.find(c => c.id === 5)!).includes('proposta-pl.pdf#page=44'));
-  assert.ok(CARTAS.every(c => c.imprensa.every(l => l.url.startsWith('https://') && l.veiculo && l.titulo)));
+  assert.ok(Object.keys(FONTES).every(id => CARTAS.some(c => c.id === Number(id))), 'fonte sem carta');
+  assert.ok(CARTAS.flatMap(fontesDa).every(l => l.url.startsWith('https://') && l.veiculo && ['plano', 'resultado', 'critica'].includes(l.tipo)));
+  assert.equal(CARTAS.filter(c => c.id <= 30).filter(c => fontesDa(c).length === 0).length, 0, 'cartas 1 a 30 com imprensa');
   assert.ok(CARTAS.every(c => c.equipe === 'aurora' || !c.revelacao), 'dado de revelação só nas cartas do Lula');
 });
 
@@ -36,11 +40,27 @@ test('partida de um tema traz só as 6 cartas daquele tema, embaralhadas', () =>
   assert.notDeepEqual(b.map(c => c.id), baralhoDoTema(CARTAS, 'seguranca', 100).map(c => c.id));
 });
 
-test('comparação às cegas: ordem A/B sorteada e placar por candidato', () => {
+test('modo todos os temas: 3 cartas do Lula e 1 do Flávio por tema', () => {
+  const b = baralhoDoTema(CARTAS, 'trabalho', 5, {aurora: 3, orbita: 1});
+  assert.equal(b.length, 4);
+  assert.equal(b.filter(c => c.equipe === 'aurora').length, 3);
+  assert.ok(b.every(c => c.tema === 'trabalho'));
+});
+
+test('comparação às cegas: ordem A/B sorteada', () => {
   const ordens = new Set(Array.from({length: 40}, (_, i) => ordemComparacao(i).join()));
   assert.equal(ordens.size, 2);
-  assert.deepEqual(contarEscolhas({trabalho: 'aurora', bolso: 'aurora', seguranca: 'orbita'}), {aurora: 2, orbita: 1, total: 3});
-  assert.deepEqual(contarEscolhas({}), {aurora: 0, orbita: 0, total: 0});
+});
+
+test('afinidade: proporção de "Boa" de cada lado mais 1 ponto da comparação', () => {
+  /* 4/4 Boa no Lula, 1/2 no Flávio, escolheu Lula: 2 x 0,5 = 80% Lula */
+  assert.deepEqual(afinidade({aurora: {boas: 4, total: 4}, orbita: {boas: 1, total: 2}}, 'aurora'), {vencedor: 'aurora', pct: 80});
+  /* mais cartas do Lula não dão vantagem: proporção igual + escolha do Flávio = Flávio */
+  assert.deepEqual(afinidade({aurora: {boas: 2, total: 4}, orbita: {boas: 1, total: 2}}, 'orbita'), {vencedor: 'orbita', pct: 75});
+  /* empate vira "dividido" */
+  assert.deepEqual(afinidade({aurora: {boas: 0, total: 4}, orbita: {boas: 2, total: 2}}, 'aurora'), {vencedor: null, pct: 50});
+  /* sem opiniões, decide a comparação */
+  assert.deepEqual(afinidade({aurora: {boas: 0, total: 0}, orbita: {boas: 0, total: 0}}, 'aurora'), {vencedor: 'aurora', pct: 100});
 });
 
 test('embaralhar preserva elementos e é determinístico com a mesma semente', () => {
@@ -142,18 +162,18 @@ test('próxima carta zera opinião, palpite e trava', () => {
   assert.equal(p.etapa, 'leitura');
 });
 
-test('partida completa embaralha as 30 cartas sem perder temas ou repetir cartas', () => {
+test('partida completa embaralha as 36 cartas sem perder temas ou repetir cartas', () => {
   const baralho = montarBaralho(CARTAS, 2026, CARTAS.length);
-  assert.equal(baralho.length, 30);
-  assert.equal(new Set(baralho.map(c => c.id)).size, 30);
+  assert.equal(baralho.length, 36);
+  assert.equal(new Set(baralho.map(c => c.id)).size, 36);
   assert.deepEqual(new Set(baralho.map(c => c.tema)), new Set(CARTAS.map(c => c.tema)));
   assert.notDeepEqual(baralho.map(c => c.id), CARTAS.map(c => c.id));
   assert.notDeepEqual(baralho, montarBaralho(CARTAS, 2027, CARTAS.length));
 });
 
-test('fluxo direto de opinião e personagem conclui 30 cartas com pontuação única', () => {
-  let p = iniciar(montarBaralho(CARTAS, 2026, 30));
-  for (let i = 0; i < 30; i++) {
+test('fluxo direto de opinião e personagem conclui 36 cartas com pontuação única', () => {
+  let p = iniciar(montarBaralho(CARTAS, 2026, 36));
+  for (let i = 0; i < 36; i++) {
     assert.equal(p.etapa, 'leitura');
     p = avancar(p, {tipo: 'iniciarOpiniao'});
     p = avancar(p, {tipo: 'opiniao', valor: i % 2 ? 'boa' : 'ruim'});
@@ -166,6 +186,6 @@ test('fluxo direto de opinião e personagem conclui 30 cartas com pontuação ú
     p = avancar(p, {tipo: 'proxima'});
   }
   assert.equal(p.fim, true);
-  assert.equal(p.acertos, 15);
-  assert.equal(p.pontos, 150);
+  assert.equal(p.acertos, 18);
+  assert.equal(p.pontos, 180);
 });
