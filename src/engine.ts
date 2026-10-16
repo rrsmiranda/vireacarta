@@ -2,7 +2,7 @@
    Fluxo da rodada: leitura → opinião (opcional) → palpite → virada → próxima.
    Pontos só na virada e só uma vez por carta (trava `travou`). */
 
-import type {Carta, Equipe} from './data';
+import type {Carta, Equipe, Tema} from './data';
 
 export type Etapa = 'leitura' | 'opiniao' | 'palpite' | 'virada';
 export type Opiniao = 'boa' | 'ruim' | 'entender';
@@ -51,6 +51,23 @@ export function montarBaralho(baralho: Carta[], semente: number, tamanho = 10): 
     return embaralhar([...A.slice(0, metade), ...O.slice(0, metade)], r);
   }
   return embaralhar(baralho, r).slice(0, Math.min(tamanho, baralho.length));
+}
+
+/* Partida de um tema: só as cartas daquele tema, embaralhadas. */
+export function baralhoDoTema(cartas: Carta[], tema: Tema, semente: number): Carta[] {
+  return embaralhar(cartas.filter(c => c.tema === tema), rng(semente));
+}
+
+/* Comparação às cegas: sorteia qual candidato aparece como opção A. */
+export function ordemComparacao(semente: number): [Equipe, Equipe] {
+  return rng(semente)() < 0.5 ? ['aurora', 'orbita'] : ['orbita', 'aurora'];
+}
+
+/* Placar das comparações às cegas de uma jornada. */
+export function contarEscolhas(escolhas: Partial<Record<Tema, Equipe>>): {aurora: number; orbita: number; total: number} {
+  const valores = Object.values(escolhas);
+  const aurora = valores.filter(e => e === 'aurora').length;
+  return {aurora, orbita: valores.length - aurora, total: valores.length};
 }
 
 export function iniciar(baralho: Carta[]): Partida {

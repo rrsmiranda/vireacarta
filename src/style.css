@@ -636,3 +636,74 @@ select, input[type="text"] {
 }
 .music-button svg { width: 23px; height: 23px; }
 .music-button[aria-pressed="false"] { color: var(--muted); }
+
+/* ===== v2: escolha de tema ===== */
+.temas { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tema-btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  min-height: 112px; padding: 14px 10px; border-radius: 18px; text-align: center;
+  background: linear-gradient(160deg, #293b52f5, #17283df5);
+  border: 1.5px solid color-mix(in srgb, var(--gold) 45%, transparent);
+  transition: transform var(--t-fast), border-color var(--t-fast), filter var(--t-fast);
+}
+.tema-btn:last-child:nth-child(odd) { grid-column: 1 / -1; min-height: 92px; }
+.tema-btn:hover { border-color: var(--gold); filter: brightness(1.08); }
+.tema-btn:active { transform: scale(.97); }
+.tema-ico .ico-cat { width: 32px; height: 32px; color: var(--gold); }
+.tema-nome { font-family: var(--f-display); font-size: 19px; line-height: 1.1; letter-spacing: .02em; }
+.tema-qtd { font-size: 12px; font-weight: 800; color: var(--muted); }
+
+/* ===== v2: evidências na revelação ===== */
+.app[data-tela="rodada"]:has(.evid) { height: auto; min-height: 100dvh; }
+.evid {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 18px;
+  background: linear-gradient(160deg, #293b52f5, #17283df5);
+  border: 1px solid color-mix(in srgb, var(--muted) 22%, transparent);
+}
+.evid-dado { margin: 0; font-weight: 800; font-size: 15px; color: var(--gold); }
+.evid-resumo { margin: 0; font-size: 14.5px; line-height: 1.45; color: var(--ink); }
+.evid .evidence-link { min-height: 50px; font-size: clamp(16px, 4.4vw, 19px); }
+.evid-imprensa { display: flex; flex-direction: column; gap: 6px; }
+.evid-imprensa small { font-size: 11px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.press-link {
+  display: block; padding: 9px 12px; border-radius: 12px; font-size: 13.5px; line-height: 1.35;
+  color: var(--ink); text-decoration: none; background: #ffffff10; border: 1px solid #ffffff1f;
+}
+.press-link b { color: var(--orbita); margin-right: 4px; }
+.press-link:hover { background: #ffffff1c; }
+
+/* ===== v2: comparação às cegas ===== */
+.app[data-tela="comparacao"] { justify-content: center; }
+.q-tema { color: var(--gold); }
+.cmp { display: flex; flex-direction: column; gap: 12px; }
+.cmp-opt {
+  position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  padding: 16px 16px 16px 58px; border-radius: 18px; text-align: left; min-height: 96px;
+  background: linear-gradient(160deg, #293b52f5, #17283df5);
+  border: 2px solid color-mix(in srgb, var(--muted) 30%, transparent);
+  transition: transform var(--t-fast), border-color var(--t-fast), opacity var(--t-fast);
+}
+.cmp-opt:not(:disabled):hover { border-color: var(--gold); }
+.cmp-opt:not(:disabled):active { transform: scale(.98); }
+.cmp-opt:disabled { cursor: default; opacity: .6; }
+.cmp-opt.escolhida { opacity: 1; border-color: var(--gold); box-shadow: 0 0 22px color-mix(in srgb, var(--gold) 35%, transparent); }
+.cmp-letra {
+  position: absolute; left: 14px; top: 16px; width: 32px; height: 32px; display: grid; place-items: center;
+  border-radius: 50%; font-family: var(--f-display); font-size: 18px; color: var(--bg-deep); background: var(--gold);
+}
+.cmp-txt { font-size: 16px; font-weight: 700; line-height: 1.4; }
+.cmp-nome { font-family: var(--f-display); font-size: 16px; letter-spacing: .04em; padding: 2px 10px; border-radius: 999px; }
+.cmp-nome.cmp-aurora { background: color-mix(in srgb, var(--lula) 30%, transparent); color: #fff; }
+.cmp-nome.cmp-orbita { background: color-mix(in srgb, var(--orbita) 28%, transparent); color: #fff; }
+.cmp-veredito { margin: 0; text-align: center; font-size: 17px; }
+.cmp-veredito.cmp-aurora b { color: color-mix(in srgb, var(--lula) 55%, #fff); }
+.cmp-veredito.cmp-orbita b { color: color-mix(in srgb, var(--orbita) 55%, #fff); }
+
+/* ===== v2: resultado ===== */
+.res-txt { font-size: 19px !important; line-height: 1.4; color: var(--ink) !important; }
+.res-aurora { color: color-mix(in srgb, var(--lula) 55%, #fff); }
+.res-orbita { color: color-mix(in srgb, var(--orbita) 55%, #fff); }
+.res-num { color: var(--gold); font-size: 1.15em; }
+.res-lista { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 6px; }
+.res-lista li { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: #ffffff0d; font-weight: 700; font-size: 14.5px; }
+.lib-fonte { font-weight: 800; color: var(--orbita); }

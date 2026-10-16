@@ -1,7 +1,10 @@
 import './style.css';
-import {CARTAS, CATEGORIAS, EQUIPES, type Carta, type Equipe} from './data';
 import {
-  avancar, cartaAtual, elogio, iniciar, montarBaralho, percentual,
+  CARTAS, EQUIPES, TEMAS, linkPrograma, nomeTema, rotuloPaginas,
+  type Carta, type Equipe, type Tema
+} from './data';
+import {
+  avancar, baralhoDoTema, cartaAtual, contarEscolhas, iniciar, ordemComparacao,
   type Opiniao, type Partida
 } from './engine';
 import {avatarSVG, iconeCategoria} from './avatar';
@@ -10,11 +13,23 @@ import {iniciarMetricas, registrar} from './metricas';
 import * as sfx from './audio';
 
 /* ================= estado ================= */
-type Tela = 'inicio' | 'rodada' | 'fim' | 'biblioteca' | 'ajustes';
+type Tela = 'inicio' | 'temas' | 'rodada' | 'comparacao' | 'fim' | 'biblioteca' | 'ajustes';
+
+/* Sequência de temas jogada de uma vez (um tema ou todos). As escolhas da
+   comparação às cegas ficam só na memória: nada sobre preferência política é salvo. */
+interface Jornada {
+  temas: Tema[];
+  atual: number;
+  escolhas: Partial<Record<Tema, Equipe>>;
+  acertos: number;
+  cartas: number;
+  ordem: [Equipe, Equipe];
+}
 
 interface Sessao {
   tela: Tela;
   partida: Partida | null;
+  jornada: Jornada | null;
   reduce: boolean;
   som: boolean;
   musica: boolean;
@@ -25,6 +40,7 @@ const CHAVE = 'vire-a-carta:v2';
 const S: Sessao = {
   tela: 'inicio',
   partida: null,
+  jornada: null,
   reduce: matchMedia('(prefers-reduced-motion: reduce)').matches,
   som: true,
   musica: true
@@ -149,13 +165,35 @@ function hudSimples(): string {
   </div>`;
 }
 
+const temaAtual = (): Tema | null => S.jornada ? S.jornada.temas[S.jornada.atual] : null;
+
+function telaTemas(): string {
+  return `
+  <div class="hud">
+    <button class="back" data-go="inicio" aria-label="Voltar ao início">‹</button>
+    <div class="prog"><small>Escolha o tema</small></div>
+  </div>
+  <h2 class="q" tabindex="-1">Qual tema você quer debater?</h2>
+  <div class="temas" role="list">
+    ${TEMAS.map(t => `
+      <button class="tema-btn" role="listitem" data-tema="${t.id}">
+        <span class="tema-ico">${iconeCategoria(t.icone)}</span>
+        <span class="tema-nome">${esc(t.nome)}</span>
+        <span class="tema-qtd">${CARTAS.filter(c => c.tema === t.id).length} cartas</span>
+      </button>`).join('')}
+  </div>
+  <button class="btn-main" data-act="todos" data-focus>TODOS OS TEMAS <span aria-hidden="true">›</span></button>
+  <p class="demo-note">Em cada tema: avalie as propostas, adivinhe de quem são e, no fim, escolha o melhor caminho.</p>`;
+}
+
 function hudRodada(p: Partida): string {
   const total = p.baralho.length;
   const i = p.indice + 1;
+  const tema = temaAtual();
   return `<div class="hud">
     <button class="back" data-act="sair" aria-label="Sair da partida">✕</button>
     <div class="prog">
-      <small>Carta ${i} de ${total}</small>
+      <small>${tema ? esc(nomeTema(tema)) + ' · ' : ''}Carta ${i}/${total}</small>
       <div class="bar"><i style="width:${((p.indice) / total) * 100}%"></i></div>
     </div>
     <div class="score" aria-label="Acertos">${p.acertos}<small>ACERTOS</small></div>
@@ -173,10 +211,46 @@ function pickBotoes(p: Partida): string {
   </div>`;
 }
 
+/* Evidência da revelação: dado em destaque, resumo, programa oficial e imprensa. */
 function evidencia(c: Carta): string {
-  return `<a class="evidence-link" data-carta="${c.id}" href="${esc(c.fonteUrl)}" target="_blank" rel="noopener noreferrer">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
-    <span>Consultar fonte</span><span class="ext" aria-hidden="true">↗</span><span class="sr">(abre em outra aba)</span></a>`;
+  const novaAba = '<span class="sr">(abre em outra aba)</span>';
+  return `<section class="evid" aria-label="Evidências">
+    ${c.revelacao ? `<p class="evid-dado">${esc(c.revelacao)}</p>` : ''}
+    <p class="evid-resumo">${esc(c.resumo)}</p>
+    <a class="evidence-link" data-carta="${c.id}" data-tipo="programa" href="${esc(linkPrograma(c))}" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m20 20-4.8-4.8"/></svg>
+      <span>Programa oficial · ${rotuloPaginas(c)}</span><span class="ext" aria-hidden="true">↗</span>${novaAba}</a>
+    ${c.imprensa.length ? `<div class="evid-imprensa">
+      <small>Na imprensa</small>
+      ${c.imprensa.map(l => `<a class="press-link" data-carta="${c.id}" data-tipo="imprensa" href="${esc(l.url)}" target="_blank" rel="noopener noreferrer"><b>${esc(l.veiculo)}</b> ${esc(l.titulo)} <span aria-hidden="true">↗</span>${novaAba}</a>`).join('')}
+    </div>` : ''}
+  </section>`;
+}
+
+function telaComparacao(): string {
+  const j = S.jornada!;
+  const tema = temaAtual()!;
+  const info = TEMAS.find(t => t.id === tema)!;
+  const escolha = j.escolhas[tema];
+  const opcoes = j.ordem.map((e, i) => {
+    const letra = i === 0 ? 'A' : 'B';
+    const nome = escolha ? `<span class="cmp-nome cmp-${e}">${EQUIPES[e].curto}</span>` : '';
+    return `<button class="cmp-opt${escolha === e ? ' escolhida' : ''}" data-comparar="${e}" aria-pressed="${escolha === e}" ${escolha ? 'disabled' : ''}>
+      <span class="cmp-letra" aria-hidden="true">${letra}</span>
+      <span class="cmp-txt">${esc(info.comparacao[e])}</span>${nome}
+    </button>`;
+  }).join('');
+  const ultimo = j.atual + 1 >= j.temas.length;
+  return `
+  <div class="hud">
+    <button class="back" data-act="sair" aria-label="Sair da partida">✕</button>
+    <div class="prog"><small>Comparação às cegas</small></div>
+  </div>
+  <h2 class="q" tabindex="-1" data-focus>Qual caminho você prefere para <span class="q-tema">${esc(info.nome.toLowerCase())}</span>?</h2>
+  <p class="hint">${escolha ? 'Agora você sabe de quem é cada proposta.' : 'Os nomes só aparecem depois da sua escolha.'}</p>
+  <div class="cmp" role="group" aria-label="Opções">${opcoes}</div>
+  ${escolha ? `<p class="cmp-veredito cmp-${escolha}" role="status">Você escolheu a proposta ${escolha === 'aurora' ? 'do' : 'de'} <b>${EQUIPES[escolha].nome}</b>.</p>
+  <button class="btn-main" data-act="proximoTema" data-focus>${ultimo ? 'VER RESULTADO' : 'PRÓXIMO TEMA'} <span aria-hidden="true">›</span></button>` : ''}`;
 }
 
 function telaRodada(p: Partida): string {
@@ -202,8 +276,8 @@ function telaRodada(p: Partida): string {
           ${acertou ? '<span class="plus" aria-hidden="true">+10</span>' : ''}
         </div>
       </div></div>
+      <button class="btn-main" data-act="proxima" data-focus>${p.indice + 1 < p.baralho.length ? 'PRÓXIMA CARTA' : 'COMPARAR CAMINHOS'} <span aria-hidden="true">›</span></button>
       ${evidencia(c)}
-      <button class="btn-main" data-act="proxima" data-focus>${p.indice + 1 < p.baralho.length ? 'PRÓXIMA CARTA' : 'VER RESULTADO'} <span aria-hidden="true">›</span></button>
 `;
   }
   return `${cabecalho}
@@ -217,55 +291,78 @@ function telaRodada(p: Partida): string {
 
 function frenteCarta(c: Carta): string {
   const longa = c.texto.length > 92;
-  const categoria = CATEGORIAS[c.categoria] ?? c.categoria;
+  const info = TEMAS.find(t => t.id === c.tema)!;
   return `
     <div class="face face-front">
       <span class="suit tl" aria-hidden="true">♠</span><span class="suit br" aria-hidden="true">♠</span>
-      <span class="tag-cat">#${esc(categoria.replace(/\s+/g, ''))}</span>
+      <span class="tag-cat">#${esc(info.nome.replace(/\s+/g, ''))}</span>
       <p class="prop${longa ? ' long' : ''}">${esc(c.texto)}</p>
-      <span class="prop-ico">${iconeCategoria(c.categoria)}</span>
+      <span class="prop-ico">${iconeCategoria(info.icone)}</span>
     </div>`;
 }
 
-function telaFim(p: Partida): string {
-  const pct = percentual(p);
-  const temas = [...new Set(p.baralho.map(c => CATEGORIAS[c.categoria] ?? c.categoria))];
+function textoResultado(j: Jornada): string {
+  const {aurora, total} = contarEscolhas(j.escolhas);
+  if (total === 1) {
+    const e = Object.values(j.escolhas)[0]!;
+    return `Em <b>${esc(nomeTema(j.temas[0]))}</b>, você escolheu o caminho ${e === 'aurora' ? 'do' : 'de'} <b class="res-${e}">${EQUIPES[e].nome}</b>.`;
+  }
+  return `Você escolheu as propostas do <b class="res-aurora">Lula</b> em <b class="res-num">${aurora} de ${total}</b> temas.`;
+}
+
+function telaFim(): string {
+  const j = S.jornada!;
+  const linhas = j.temas.filter(t => j.escolhas[t]).map(t => {
+    const e = j.escolhas[t]!;
+    return `<li><span>${esc(nomeTema(t))}</span><span class="pill pill-${e}">${EQUIPES[e].curto}</span></li>`;
+  }).join('');
   return `
   ${hudSimples()}
-  <div class="panel" style="text-align:center;align-items:center">
-    <h2>Fim da partida</h2>
-    <div class="big">${p.acertos}<span style="font-size:34px">/${p.baralho.length}</span></div>
-    <p>${elogio(p)} · ${pct}% de acertos · +${p.pontos} pontos</p>
+  <div class="panel res-panel" style="text-align:center;align-items:center">
+    <h2>Resultado</h2>
+    <p class="res-txt">${textoResultado(j)}</p>
+    ${j.temas.length > 1 ? `<ul class="res-lista">${linhas}</ul>` : ''}
+    <p>Você acertou de quem era a proposta em ${j.acertos} de ${j.cartas} cartas.</p>
   </div>
-  <button class="btn-main" data-act="recomecar" data-focus>JOGAR NOVAMENTE <span aria-hidden="true">›</span></button>
+  <button class="btn-main" data-go="temas" data-focus>JOGAR OUTRO TEMA <span aria-hidden="true">›</span></button>
   <div class="row">
-    <button class="btn-ghost" data-go="biblioteca">Explorar cartas</button>
+    <button class="btn-ghost" data-go="biblioteca">Ver todas as cartas</button>
     <button class="btn-ghost" data-act="compartilhar" id="btn-share">Copiar resultado</button>
   </div>
   <p class="hint" id="sharemsg" role="status"></p>
-  <div class="chips">${temas.map(t => `<span class="chip">${esc(t)}</span>`).join('')}</div>`;
+  <div class="panel">
+    <p class="comunidade-txt">Quer acompanhar e saber mais das propostas? Acesse a comunidade.</p>
+    ${linkComunidade()}
+  </div>`;
 }
 
 function telaBiblioteca(): string {
   return `
   ${hudSimples()}
   <div class="panel">
-    <h2>As 32 cartas</h2>
-    <p>Textos e atribuições do PDF Baralho 2026. Busque por texto ou tema.</p>
+    <h2>Todas as cartas</h2>
+    <p>Propostas dos programas de governo registrados no TSE, por tema. Busque por texto ou tema.</p>
     <label for="q" class="sr">Buscar cartas</label>
     <input type="text" id="q" placeholder="Buscar por texto ou tema…">
   </div>
   <div class="lib" id="lib">
-    ${CARTAS.map(c => `
-      <div class="lib-item" data-busca="${esc((c.texto + ' ' + c.categoria).toLowerCase())}">
+    ${TEMAS.map(t => CARTAS.filter(c => c.tema === t.id).map(c => `
+      <div class="lib-item" data-busca="${esc((c.texto + ' ' + t.nome).toLowerCase())}">
         <span class="t">${esc(c.texto)}</span>
         <span class="m">
           <span class="pill pill-${c.equipe}">${EQUIPES[c.equipe].curto}</span>
-          <span class="pill pill-fic">Baralho 2026</span>
-          <span>${esc(CATEGORIAS[c.categoria] ?? c.categoria)}</span>
+          <span>${esc(t.nome)}</span>
+          <a class="lib-fonte" data-carta="${c.id}" data-tipo="programa" href="${esc(linkPrograma(c))}" target="_blank" rel="noopener noreferrer">Programa, ${rotuloPaginas(c)} ↗<span class="sr">(abre em outra aba)</span></a>
         </span>
-      </div>`).join('')}
+      </div>`).join('')).join('')}
   </div>`;
+}
+
+function linkComunidade(): string {
+  return `<a class="whatsapp-link" href="${COMUNIDADE_URL}" target="_blank" rel="noopener noreferrer">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.4-.2Z"/></svg>
+      <span>EXÉRCITO DO LULA no WhatsApp</span><span aria-hidden="true">↗</span><span class="sr">(abre em outra aba)</span>
+    </a>`;
 }
 
 function telaAjustes(): string {
@@ -289,10 +386,7 @@ function telaAjustes(): string {
   <div class="panel">
     <h3>Sobre este baralho</h3>
     <p class="comunidade-txt">Quer acompanhar e saber mais das propostas? Acesse a comunidade.</p>
-    <a class="whatsapp-link" href="${COMUNIDADE_URL}" target="_blank" rel="noopener noreferrer">
-      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.1-1.2l-.4-.2Z"/></svg>
-      <span>EXÉRCITO DO LULA no WhatsApp</span><span aria-hidden="true">↗</span><span class="sr">(abre em outra aba)</span>
-    </a>
+    ${linkComunidade()}
   </div>
   <div class="panel">
     <h3>Privacidade</h3>
@@ -306,8 +400,10 @@ function render(foco = true) {
   document.documentElement.classList.toggle('reduce', S.reduce);
   const telas: Record<Tela, () => string> = {
     inicio: telaInicio,
+    temas: telaTemas,
     rodada: () => telaRodada(S.partida!),
-    fim: () => telaFim(S.partida!),
+    comparacao: telaComparacao,
+    fim: telaFim,
     biblioteca: telaBiblioteca,
     ajustes: telaAjustes
   };
@@ -325,17 +421,55 @@ function irPara(tela: Tela) {
   window.scrollTo({top: 0});
 }
 
-function iniciarPartida() {
-  const semente = (Date.now() ^ (Math.random() * 1e9)) >>> 0;
-  S.partida = iniciar(montarBaralho(CARTAS, semente, CARTAS.length));
-  registrar('jogo_iniciado');
+const novaSemente = () => (Date.now() ^ (Math.random() * 1e9)) >>> 0;
+
+/* Começa uma jornada: um tema só ou todos, na ordem de TEMAS. */
+function iniciarJornada(temas: Tema[]) {
+  S.jornada = {temas, atual: 0, escolhas: {}, acertos: 0, cartas: 0, ordem: ['aurora', 'orbita']};
+  registrar('jogo_iniciado', {temas: temas.length === 1 ? temas[0] : 'todos'});
+  comecarTema();
+}
+
+function comecarTema() {
+  const tema = temaAtual()!;
+  S.partida = iniciar(baralhoDoTema(CARTAS, tema, novaSemente()));
+  registrar('tema_iniciado', {tema});
   irPara('rodada');
+}
+
+/* Fim das cartas do tema: soma os acertos e abre a comparação às cegas. */
+function concluirCartasDoTema(p: Partida) {
+  const j = S.jornada!;
+  j.acertos += p.acertos;
+  j.cartas += p.baralho.length;
+  j.ordem = ordemComparacao(novaSemente());
+  irPara('comparacao');
 }
 
 function ligar() {
   /* navegação por tela */
   app.querySelectorAll<HTMLElement>('[data-go]').forEach(b => {
     b.onclick = () => { sfx.somClique(); irPara(b.dataset.go as Tela); };
+  });
+
+  /* escolha de tema */
+  app.querySelectorAll<HTMLElement>('[data-tema]').forEach(b => {
+    b.onclick = () => { sfx.somClique(); iniciarJornada([b.dataset.tema as Tema]); };
+  });
+
+  /* comparação às cegas */
+  app.querySelectorAll<HTMLElement>('[data-comparar]').forEach(b => {
+    b.onclick = () => {
+      const j = S.jornada;
+      const tema = temaAtual();
+      if (!j || !tema || j.escolhas[tema]) return;
+      const escolha = b.dataset.comparar as Equipe;
+      j.escolhas[tema] = escolha;
+      registrar('comparacao', {tema, escolha: EQUIPES[escolha].nome});
+      sfx.somEscolha();
+      render();
+      say(`Você escolheu a proposta de ${EQUIPES[escolha].nome}.`);
+    };
   });
 
   /* opinião */
@@ -373,27 +507,38 @@ function ligar() {
       if (a === 'toggleReduce') { S.reduce = !S.reduce; salvarPrefs(); render(false); return; }
       if (a === 'toggleMusica') { S.musica = !S.musica; salvarPrefs(); render(false); return; }
       if (a === 'toggleSom') { S.som = !S.som; sfx.setSom(S.som); salvarPrefs(); render(false); if (S.som) sfx.somEscolha(); return; }
-      if (a === 'sair') { registrarAbandono(); S.partida = null; sfx.somClique(); irPara('inicio'); return; }
-      if (a === 'iniciar' || a === 'recomecar') { sfx.somClique(); iniciarPartida(); return; }
-      if (!p) return;
-
-      if (a === 'proxima') {
+      if (a === 'sair') { registrarAbandono(); S.partida = null; S.jornada = null; sfx.somClique(); irPara('temas'); return; }
+      if (a === 'iniciar') { sfx.somClique(); irPara('temas'); return; }
+      if (a === 'todos') { sfx.somClique(); iniciarJornada(TEMAS.map(t => t.id)); return; }
+      if (a === 'proximoTema') {
+        const j = S.jornada;
+        if (!j) return;
         sfx.somClique();
-        S.partida = avancar(p, {tipo: 'proxima'});
-        if (S.partida!.fim) {
-          registrar('partida_concluida', {acertos: S.partida!.acertos, total: S.partida!.baralho.length});
-          sfx.somFim(); irPara('fim');
-        } else { render(); }
+        if (j.atual + 1 < j.temas.length) { j.atual++; comecarTema(); return; }
+        const {aurora, total} = contarEscolhas(j.escolhas);
+        registrar('partida_concluida', {temas: total, lula: aurora, acertos: j.acertos, cartas: j.cartas});
+        sfx.somFim(); irPara('fim');
         return;
       }
       if (a === 'compartilhar') {
-        const msg = `Joguei Vire a Carta: ${p.acertos}/${p.baralho.length} acertos no Baralho 2026. Você conhece as atribuições do baralho?`;
+        const j = S.jornada;
+        if (!j) return;
+        const {aurora, total} = contarEscolhas(j.escolhas);
+        const msg = total > 1
+          ? `Fiz o teste às cegas no Vire a Carta e escolhi as propostas do Lula em ${aurora} de ${total} temas. Faça o seu: ${location.origin}`
+          : `Joguei Vire a Carta e acertei ${j.acertos} de ${j.cartas} propostas. Descubra quem defende cada proposta: ${location.origin}`;
         const alvo = document.getElementById('sharemsg');
         navigator.clipboard?.writeText(msg).then(
           () => { if (alvo) alvo.textContent = 'Resultado copiado!'; },
           () => { if (alvo) alvo.textContent = msg; }
         ) ?? (alvo && (alvo.textContent = msg));
         return;
+      }
+      if (a === 'proxima' && p) {
+        sfx.somClique();
+        S.partida = avancar(p, {tipo: 'proxima'});
+        if (S.partida.fim) concluirCartasDoTema(S.partida);
+        else render();
       }
     };
   });
@@ -465,15 +610,15 @@ function iconeMusica(ligada: boolean): string {
 // Partida interrompida antes do fim: em qual carta a pessoa parou.
 function registrarAbandono() {
   const p = S.partida;
-  if (S.tela === 'rodada' && p && !p.fim) registrar('abandono', {carta_numero: p.indice + 1});
+  if (S.tela === 'rodada' && p && !p.fim) registrar('abandono', {tema: temaAtual() ?? '', carta_numero: p.indice + 1});
 }
 // Fechar a aba ou sair do app no meio da partida também conta como abandono.
 addEventListener('pagehide', registrarAbandono);
-// Cliques nos links externos (fonte de cada carta e comunidade).
+// Cliques nos links externos (programa oficial, imprensa e comunidade).
 app.addEventListener('click', event => {
-  const link = (event.target as Element).closest<HTMLAnchorElement>('a.evidence-link, a.whatsapp-link');
+  const link = (event.target as Element).closest<HTMLAnchorElement>('a[data-tipo], a.whatsapp-link');
   if (!link) return;
-  if (link.classList.contains('evidence-link')) registrar('clique_fonte', {carta: Number(link.dataset.carta)});
+  if (link.dataset.tipo) registrar('clique_fonte', {carta: Number(link.dataset.carta), tipo: link.dataset.tipo});
   else registrar('clique_whatsapp');
 });
 

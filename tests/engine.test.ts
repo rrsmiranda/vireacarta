@@ -1,22 +1,46 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {avancar, cartaAtual, embaralhar, iniciar, montarBaralho, rng, percentual} from '../src/engine.ts';
-import {CARTAS} from '../src/data.ts';
+import {
+  avancar, baralhoDoTema, cartaAtual, contarEscolhas, embaralhar, iniciar, montarBaralho, ordemComparacao, rng, percentual
+} from '../src/engine.ts';
+import {CARTAS, TEMAS, linkPrograma} from '../src/data.ts';
 
-test('PDF Baralho 2026: 32 cartas, atribuições 17/15, ids únicos', () => {
-  assert.equal(CARTAS.length, 32);
-  assert.equal(new Set(CARTAS.map(c => c.id)).size, 32);
-  assert.equal(CARTAS.filter(c => c.equipe === 'aurora').length, 17);
-  assert.equal(CARTAS.filter(c => c.equipe === 'orbita').length, 15);
-  assert.ok(CARTAS.every(c => c.ficcao === false && c.verificacao === 'nao_verificada'));
-  assert.ok(CARTAS.every(c => c.texto.length > 10 && c.categoria && c.fonte && c.paginaResposta));
+test('baralho v2: 30 cartas, 6 por tema (4 do Lula e 2 do Flávio), ids únicos', () => {
+  assert.equal(CARTAS.length, 30);
+  assert.equal(new Set(CARTAS.map(c => c.id)).size, 30);
+  for (const t of TEMAS) {
+    const doTema = CARTAS.filter(c => c.tema === t.id);
+    assert.equal(doTema.length, 6, t.id);
+    assert.equal(doTema.filter(c => c.equipe === 'aurora').length, 4, t.id);
+    assert.ok(t.comparacao.aurora.length > 20 && t.comparacao.orbita.length > 20);
+  }
+  assert.ok(CARTAS.every(c => c.texto.length > 10 && c.resumo.length > 40));
 });
 
-test('cada carta aponta para o link do seu QR code, sem repetição', () => {
-  assert.ok(CARTAS.every(c => /^https:\/\/tr\.ee\/\w+$/.test(c.fonteUrl)));
-  assert.equal(new Set(CARTAS.map(c => c.fonteUrl)).size, 32);
-  assert.equal(CARTAS.find(c => c.id === 1)?.fonteUrl, 'https://tr.ee/uc7fmpbyOtxI');
-  assert.equal(CARTAS.find(c => c.id === 32)?.fonteUrl, 'https://tr.ee/BWFmSVDBamCa');
+test('cada carta aponta para a página do programa oficial no TSE', () => {
+  const maxPag = {aurora: 84, orbita: 76};
+  for (const c of CARTAS) {
+    assert.ok(c.paginas.length > 0 && c.paginas.every(n => n >= 1 && n <= maxPag[c.equipe]), `carta ${c.id}`);
+    assert.match(linkPrograma(c), /^https:\/\/www\.tse\.jus\.br\/.+\.pdf#page=\d+$/);
+  }
+  assert.ok(linkPrograma(CARTAS.find(c => c.id === 1)!).includes('proposta-pt.pdf#page=75'));
+  assert.ok(linkPrograma(CARTAS.find(c => c.id === 5)!).includes('proposta-pl.pdf#page=44'));
+  assert.ok(CARTAS.every(c => c.imprensa.every(l => l.url.startsWith('https://') && l.veiculo && l.titulo)));
+  assert.ok(CARTAS.every(c => c.equipe === 'aurora' || !c.revelacao), 'dado de revelação só nas cartas do Lula');
+});
+
+test('partida de um tema traz só as 6 cartas daquele tema, embaralhadas', () => {
+  const b = baralhoDoTema(CARTAS, 'seguranca', 99);
+  assert.equal(b.length, 6);
+  assert.ok(b.every(c => c.tema === 'seguranca'));
+  assert.notDeepEqual(b.map(c => c.id), baralhoDoTema(CARTAS, 'seguranca', 100).map(c => c.id));
+});
+
+test('comparação às cegas: ordem A/B sorteada e placar por candidato', () => {
+  const ordens = new Set(Array.from({length: 40}, (_, i) => ordemComparacao(i).join()));
+  assert.equal(ordens.size, 2);
+  assert.deepEqual(contarEscolhas({trabalho: 'aurora', bolso: 'aurora', seguranca: 'orbita'}), {aurora: 2, orbita: 1, total: 3});
+  assert.deepEqual(contarEscolhas({}), {aurora: 0, orbita: 0, total: 0});
 });
 
 test('embaralhar preserva elementos e é determinístico com a mesma semente', () => {
@@ -118,18 +142,18 @@ test('próxima carta zera opinião, palpite e trava', () => {
   assert.equal(p.etapa, 'leitura');
 });
 
-test('partida completa embaralha as 32 cartas sem perder temas ou repetir cartas', () => {
+test('partida completa embaralha as 30 cartas sem perder temas ou repetir cartas', () => {
   const baralho = montarBaralho(CARTAS, 2026, CARTAS.length);
-  assert.equal(baralho.length, 32);
-  assert.equal(new Set(baralho.map(c => c.id)).size, 32);
-  assert.deepEqual(new Set(baralho.map(c => c.categoria)), new Set(CARTAS.map(c => c.categoria)));
+  assert.equal(baralho.length, 30);
+  assert.equal(new Set(baralho.map(c => c.id)).size, 30);
+  assert.deepEqual(new Set(baralho.map(c => c.tema)), new Set(CARTAS.map(c => c.tema)));
   assert.notDeepEqual(baralho.map(c => c.id), CARTAS.map(c => c.id));
   assert.notDeepEqual(baralho, montarBaralho(CARTAS, 2027, CARTAS.length));
 });
 
-test('fluxo direto de opinião e personagem conclui 32 cartas com pontuação única', () => {
-  let p = iniciar(montarBaralho(CARTAS, 2026, 32));
-  for (let i = 0; i < 32; i++) {
+test('fluxo direto de opinião e personagem conclui 30 cartas com pontuação única', () => {
+  let p = iniciar(montarBaralho(CARTAS, 2026, 30));
+  for (let i = 0; i < 30; i++) {
     assert.equal(p.etapa, 'leitura');
     p = avancar(p, {tipo: 'iniciarOpiniao'});
     p = avancar(p, {tipo: 'opiniao', valor: i % 2 ? 'boa' : 'ruim'});
@@ -142,6 +166,6 @@ test('fluxo direto de opinião e personagem conclui 32 cartas com pontuação ú
     p = avancar(p, {tipo: 'proxima'});
   }
   assert.equal(p.fim, true);
-  assert.equal(p.acertos, 16);
-  assert.equal(p.pontos, 160);
+  assert.equal(p.acertos, 15);
+  assert.equal(p.pontos, 150);
 });
