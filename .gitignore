@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+# arquivos temporários (extração do PDF, capturas)
+tmp/
+# backups automáticos do Blender
+*.blend1
+# variáveis de ambiente locais
+.env
+.env.local
+.env.*.local
+.vercel
