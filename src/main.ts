@@ -1,7 +1,7 @@
 import './style.css';
 import {
   CARTAS, EQUIPES, TEMAS, fontesDa, linkPrograma, nomeTema, rotuloPaginas,
-  type Carta, type Equipe, type Link, type Tema
+  type Carta, type Equipe, type InfoTema, type Link, type Tema
 } from './data';
 import {
   afinidade, avancar, baralhoDoTema, cartaAtual, iniciar, ordemComparacao,
@@ -34,6 +34,10 @@ interface Sessao {
   jornada: Jornada | null;
   resultados: Partial<Record<Tema, ResultadoTema>>;
   checados: Tema[];
+  /** Popup do teste rápido aberto sobre a tela de temas. */
+  popup: boolean;
+  /** O popup já apareceu nesta visita (aparece só na primeira entrada). */
+  popupVisto: boolean;
   acertos: number;
   cartas: number;
   reduce: boolean;
@@ -49,6 +53,8 @@ const S: Sessao = {
   jornada: null,
   resultados: {},
   checados: [],
+  popup: false,
+  popupVisto: false,
   acertos: 0,
   cartas: 0,
   reduce: matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -139,13 +145,23 @@ app.addEventListener('error', event => {
   }
 }, true);
 
+/* Crédito da música de fundo, mostrado em Ajustes. */
+const CREDITO_MUSICA = 'trilha original "Vire a Carta — Arena", criada com Suno para este jogo';
+
 // Canal da comunidade divulgado na tela de ajustes.
 const COMUNIDADE_URL = 'https://www.whatsapp.com/channel/0029VbCbRfD7tkj88k3soZ0Y';
+// Endereço público do jogo, usado no botão de compartilhar.
+const JOGO_URL = 'https://vireacarta.vercel.app/';
+
+/* Teste rápido: os temas de bolso e dia a dia, onde a comparação mais
+   aproxima o indeciso das propostas do Lula. 4 cartas em cada (3 + 1). */
+const TEMAS_RAPIDO: Tema[] = ['bolso', 'trabalho', 'saude'];
 
 /* ================= telas ================= */
 function telaInicio(): string {
   return `
   <button class="music-button" data-act="toggleMusica" aria-pressed="${S.musica}" aria-label="${S.musica ? 'Desligar música' : 'Ligar música'}" title="${S.musica ? 'Desligar música' : 'Ligar música'}">${iconeMusica(S.musica)}</button>
+  <button class="share-button" data-act="compartilhar" aria-label="Compartilhar o jogo" title="Compartilhar o jogo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg></button>
   <button class="settings-button" data-go="ajustes" aria-label="Ajustes" title="Ajustes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m9 3-.5 3-2 1-2.5-1-2 4 2.5 2v2L2 16l2 4 3-1 2 1 .5 2h5l.5-2 2-1 3 1 2-4-2.5-2v-2l2.5-2-2-4-2.5 1-2-1-.5-3Z"/><circle cx="12" cy="12" r="3"/></svg></button>
   <header class="logo" aria-label="Vire a Carta — Presidente 2026">
     <svg class="crown" viewBox="0 0 48 32" fill="currentColor" aria-hidden="true">
@@ -187,14 +203,38 @@ function selo(r: ResultadoTema): string {
     : '<span class="selo selo-empate">DIVIDIDO 50%</span>';
 }
 
+const temasQueFaltam = (): Tema[] => TEMAS.map(t => t.id).filter(t => !S.checados.includes(t));
+const rapidoFeito = (): boolean => TEMAS_RAPIDO.every(t => S.checados.includes(t));
+
+/* Popup ao entrar na arena: puxa a pessoa para o teste rápido (bolso, trabalho e
+   saúde). Para quem já fez o teste rápido, sugere os temas que faltam. */
+function popupRapido(): string {
+  const faltam = temasQueFaltam();
+  const continuar = rapidoFeito();
+  const titulo = continuar ? 'Continue o debate' : 'Comece pelo teste rápido';
+  const texto = continuar
+    ? `Faltam ${faltam.length} ${faltam.length > 1 ? 'temas' : 'tema'}: ${faltam.map(nomeTema).join(', ')}. Veja onde você concorda com cada candidato.`
+    : 'Seu bolso, trabalho e saúde em 2 minutos. No fim, veja com qual candidato você mais concorda.';
+  return `<div class="popup-fundo" data-fundo>
+    <div class="popup" role="dialog" aria-modal="true" aria-labelledby="popup-titulo">
+      <button class="popup-x" data-act="fecharPopup" aria-label="Fechar">✕</button>
+      <span class="popup-ico" aria-hidden="true">⚡</span>
+      <h2 id="popup-titulo" tabindex="-1" data-focus>${titulo}</h2>
+      <p>${esc(texto)}</p>
+      <button class="btn-main" data-act="${continuar ? 'faltam' : 'rapido'}">${continuar ? 'JOGAR O QUE FALTA' : 'COMEÇAR AGORA'} <span aria-hidden="true">›</span></button>
+      <button class="popup-outro" data-act="fecharPopup">Escolher outro tema</button>
+    </div>
+  </div>`;
+}
+
 function telaTemas(): string {
   const feitos = TEMAS.filter(t => S.resultados[t.id]).length;
-  return `
+  return `${S.popup ? popupRapido() : ''}
   <div class="hud">
     <button class="back" data-go="inicio" aria-label="Voltar ao início">‹</button>
     <div class="prog"><small>Escolha o tema</small></div>
   </div>
-  <h2 class="q" tabindex="-1">Qual tema você quer debater?</h2>
+  <h2 class="q" tabindex="-1" data-focus>Escolha um tema</h2>
   <div class="temas" role="list">
     ${TEMAS.map(t => `
       <button class="tema-btn${S.checados.includes(t.id) ? ' checado' : ''}" role="listitem" data-tema="${t.id}">
@@ -205,9 +245,14 @@ function telaTemas(): string {
         ${S.resultados[t.id] ? selo(S.resultados[t.id]!) : `<span class="tema-qtd">${CARTAS.filter(c => c.tema === t.id).length} cartas</span>`}
       </button>`).join('')}
   </div>
-  <button class="btn-main" data-act="todos" data-focus>TODOS OS TEMAS <span aria-hidden="true">›</span></button>
+  <div class="row">
+    <button class="btn-ghost btn-rapido-mini" data-act="rapido">⚡ Teste rápido</button>
+    <button class="btn-ghost" data-act="todos">Todos os 6 temas</button>
+  </div>
   ${feitos ? `<button class="btn-ghost" data-go="fim">Ver meu resultado (${feitos} ${feitos > 1 ? 'temas' : 'tema'})</button>` : ''}
-  <p class="demo-note">Em cada tema: avalie as propostas, adivinhe de quem são e, no fim, escolha o melhor caminho.</p>`;
+  <p class="demo-note">Em cada tema: avalie as propostas, adivinhe de quem são e, no fim, escolha o melhor caminho.</p>
+  <button class="share-inline" data-act="compartilhar">Compartilhar o jogo ↗</button>
+  <p class="hint" id="sharemsg" role="status"></p>`;
 }
 
 function hudRodada(p: Partida): string {
@@ -283,7 +328,20 @@ function telaComparacao(): string {
   <p class="hint">${escolha ? 'Agora você sabe de quem é cada proposta.' : 'Os nomes só aparecem depois da sua escolha.'}</p>
   <div class="cmp" role="group" aria-label="Opções">${opcoes}</div>
   ${r ? `${carimbo(r, info.nome)}
+  ${blocoEmJogo([info])}
   ${avancar}` : ''}`;
+}
+
+/* "O que está em jogo para você": o que cada plano garante no tema. */
+function blocoEmJogo(temas: InfoTema[], titulo = 'O que está em jogo para você'): string {
+  const linhas = temas.flatMap(t => t.emJogo).map(l => `
+    <li>
+      <b class="ej-item">${esc(l.item)}</b>
+      <span class="ej-lado ej-lula"><span class="ej-ico" aria-hidden="true">✔</span><span><b>Lula:</b> ${esc(l.lula)}</span></span>
+      <span class="ej-lado ej-flavio"><span class="ej-ico" aria-hidden="true">✘</span><span><b>Flávio:</b> ${esc(l.flavio)}</span></span>
+    </li>`).join('');
+  return `<section class="em-jogo" aria-label="${esc(titulo)}"><h3>${esc(titulo)}</h3><ul>${linhas}</ul>
+    <p class="ej-nota">Conforme os programas de governo registrados no TSE.</p></section>`;
 }
 
 /* Carimbo de tema concluído: "Checado!" e o lado com maior afinidade. */
@@ -328,9 +386,9 @@ function telaRodada(p: Partida): string {
   }
   return `${cabecalho}
     <div class="stage"><div class="card3d" id="card">${frenteCarta(c)}</div></div>
-    <p class="opinion-q" id="opinion-q">Essa proposta é…</p>
+    <p class="opinion-q" id="opinion-q" tabindex="-1" data-focus>Essa proposta é…</p>
     <div class="opinion-actions" role="group" aria-labelledby="opinion-q">
-      <button class="opt" data-opiniao="boa" data-focus>Boa</button>
+      <button class="opt" data-opiniao="boa">Boa</button>
       <button class="opt" data-opiniao="ruim">Ruim</button>
     </div>`;
 }
@@ -354,40 +412,49 @@ function placarSessao() {
   return {feitos, lula, total: feitos.length};
 }
 
-function textoResultado(): string {
-  const {feitos, lula, total} = placarSessao();
-  if (total === 1) {
-    const {tema, r} = feitos[0];
-    return r.vencedor
-      ? `Em <b>${esc(tema.nome)}</b>, você está mais para <b class="res-${r.vencedor}">${EQUIPES[r.vencedor].nome}</b> (${r.pct}%).`
-      : `Em <b>${esc(tema.nome)}</b>, você ficou dividido.`;
-  }
-  return `Você está mais para o <b class="res-aurora">Lula</b> em <b class="res-num">${lula} de ${total}</b> temas.`;
-}
-
 function telaFim(): string {
-  const {feitos} = placarSessao();
-  if (!feitos.length) return telaTemas();
+  const {feitos, lula, total} = placarSessao();
+  if (!total) return telaTemas();
+  const comLula = feitos.filter(f => f.r.vencedor === 'aurora').map(f => f.tema);
+  const maisLula = lula > total - lula;
   const linhas = feitos.map(({tema, r}) => `<li><span>${esc(tema.nome)}</span>${selo(r)}</li>`).join('');
+  const lista = (ts: InfoTema[]) => ts.map(t => `<b>${esc(t.nome.toLowerCase())}</b>`).join(', ').replace(/, ([^,]*)$/, ' e $1');
+  const titulo = maisLula
+    ? (total === 1
+      ? `Em <b>${esc(feitos[0].tema.nome)}</b>, você está mais para o <b class="res-aurora">Lula</b> (${feitos[0].r.pct}%).`
+      : `Você está mais para o <b class="res-aurora">Lula</b> em <b class="res-num">${lula} de ${total}</b> temas.`)
+    : comLula.length
+      ? `Você concorda com o <b class="res-aurora">Lula</b> em ${lista(comLula)}.`
+      : 'Nos temas que você jogou, ficou mais perto do Flávio.';
+  const apoio = maisLula
+    ? 'Suas escolhas às cegas batem com as propostas do Lula.'
+    : comLula.length
+      ? `${comLula.length > 1 ? 'Nesses temas' : 'Nesse tema'}, o caminho que você escolheu às cegas é o do plano do Lula. Veja abaixo o que está em jogo.`
+      : 'Antes de decidir, veja o que cada plano garante para você.';
+  const restantes = TEMAS.length - total;
   return `
   ${hudSimples()}
   <div class="panel res-panel" style="text-align:center;align-items:center">
     <h2>Resultado</h2>
-    <p class="res-txt">${textoResultado()}</p>
-    ${feitos.length > 1 ? `<ul class="res-lista">${linhas}</ul>` : ''}
+    <p class="res-txt">${titulo}</p>
+    <p>${apoio}</p>
+    ${total > 1 ? `<ul class="res-lista">${linhas}</ul>` : ''}
     <p>Você acertou de quem era a proposta em ${S.acertos} de ${S.cartas} cartas.</p>
-    ${feitos.length < TEMAS.length ? `<p>Faltam ${TEMAS.length - feitos.length} temas para completar o debate.</p>` : ''}
   </div>
-  <button class="btn-main" data-go="temas" data-focus>${feitos.length < TEMAS.length ? 'JOGAR OUTRO TEMA' : 'VOLTAR AOS TEMAS'} <span aria-hidden="true">›</span></button>
-  <div class="row">
-    <button class="btn-ghost" data-go="biblioteca">Ver todas as cartas</button>
-    <button class="btn-ghost" data-act="compartilhar" id="btn-share">Copiar resultado</button>
-  </div>
+  ${blocoEmJogo(feitos.map(f => f.tema))}
+  ${maisLula ? '' : '<p class="mudar">Mudar de ideia depois de comparar é coisa de quem pensa por conta própria. O voto é seu.</p>'}
+  <button class="btn-main btn-share" data-act="compartilhar" data-focus>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></svg>
+    ${maisLula ? 'COMPARTILHAR O JOGO' : 'ENVIE A QUEM NÃO DECIDIU'}</button>
   <p class="hint" id="sharemsg" role="status"></p>
-  <div class="panel">
+  <div class="row">
+    <button class="btn-ghost" data-go="temas">${restantes ? `Jogar mais ${restantes} ${restantes > 1 ? 'temas' : 'tema'}` : 'Voltar aos temas'}</button>
+    <button class="btn-ghost" data-go="biblioteca">Ver todas as propostas</button>
+  </div>
+  ${maisLula ? `<div class="panel">
     <p class="comunidade-txt">Quer acompanhar e saber mais das propostas? Acesse a comunidade.</p>
     ${linkComunidade()}
-  </div>`;
+  </div>` : ''}`;
 }
 
 function telaBiblioteca(): string {
@@ -443,6 +510,11 @@ function telaAjustes(): string {
     ${linkComunidade()}
   </div>
   <div class="panel">
+    <h3>Avisos</h3>
+    <p>As imagens e os vídeos dos candidatos foram feitos com inteligência artificial.</p>
+    ${CREDITO_MUSICA ? `<p>Música: ${esc(CREDITO_MUSICA)}.</p>` : ''}
+  </div>
+  <div class="panel">
     <h3>Privacidade</h3>
     <p>Coletamos apenas estatísticas anônimas de uso (cartas jogadas, respostas e cliques) para entender e melhorar o jogo. Não usamos cookies e não coletamos nome, contato ou qualquer dado que identifique você. Suas preferências ficam salvas só neste aparelho.</p>
   </div>
@@ -464,7 +536,9 @@ function render(foco = true) {
   app.dataset.tela = S.tela;
   app.innerHTML = telas[S.tela]();
   ligar();
-  if (foco) app.querySelector<HTMLElement>('[data-focus]')?.focus({preventScroll: true});
+  // Foco automático para leitor de tela, sem o contorno visual: em telas de escolha
+  // ele vai para a pergunta, nunca para uma opção (não pode parecer pré-marcada).
+  if (foco) app.querySelector<HTMLElement>('[data-focus]')?.focus({preventScroll: true, focusVisible: false} as FocusOptions);
   atualizarMusica();
 }
 
@@ -472,20 +546,38 @@ function render(foco = true) {
 function irPara(tela: Tela) {
   S.tela = tela;
   render();
+  // O body é quem rola (overflow-x no body), então zera os dois ao trocar de tela.
   window.scrollTo({top: 0});
+  document.body.scrollTop = 0;
 }
+
+/* O popup entra no histórico: o botão Voltar do celular o fecha sem sair da tela. */
+function abrirPopup() {
+  S.popup = true;
+  S.popupVisto = true;
+  registrar('popup_rapido');
+  try { history.pushState({popup: true}, ''); } catch { /* sem histórico */ }
+}
+function fecharPopup(redesenhar = true) {
+  if (!S.popup) return;
+  S.popup = false;
+  if (history.state?.popup) history.back();
+  if (redesenhar) render();
+}
+addEventListener('popstate', () => { if (S.popup) { S.popup = false; render(); } });
+addEventListener('keydown', e => { if (e.key === 'Escape' && S.popup) fecharPopup(); });
 
 const novaSemente = () => (Date.now() ^ (Math.random() * 1e9)) >>> 0;
 
 const aprovacaoVazia = (): Record<Equipe, Aprovacao> => ({aurora: {boas: 0, total: 0}, orbita: {boas: 0, total: 0}});
 
-/* No modo "todos os temas", cada tema tem 4 cartas (3 do Lula e 1 do Flávio). */
+/* Com mais de um tema (teste rápido ou todos), cada tema tem 4 cartas (3 do Lula e 1 do Flávio). */
 const CURTO: Record<Equipe, number> = {aurora: 3, orbita: 1};
 
 /* Começa uma jornada: um tema só ou todos, na ordem de TEMAS. */
 function iniciarJornada(temas: Tema[]) {
   S.jornada = {temas, atual: 0, aprovacao: aprovacaoVazia(), ordem: ['aurora', 'orbita']};
-  registrar('jogo_iniciado', {temas: temas.length === 1 ? temas[0] : 'todos'});
+  registrar('jogo_iniciado', {temas: temas.length === 1 ? temas[0] : temas.length === TEMAS.length ? 'todos' : 'rapido'});
   comecarTema();
 }
 
@@ -512,6 +604,10 @@ function ligar() {
   app.querySelectorAll<HTMLElement>('[data-go]').forEach(b => {
     b.onclick = () => { sfx.somClique(); irPara(b.dataset.go as Tela); };
   });
+
+  /* toque fora do popup fecha */
+  const fundo = app.querySelector<HTMLElement>('[data-fundo]');
+  if (fundo) fundo.onclick = e => { if (e.target === fundo) fecharPopup(); };
 
   /* escolha de tema */
   app.querySelectorAll<HTMLElement>('[data-tema]').forEach(b => {
@@ -574,8 +670,17 @@ function ligar() {
       if (a === 'toggleMusica') { S.musica = !S.musica; salvarPrefs(); render(false); return; }
       if (a === 'toggleSom') { S.som = !S.som; sfx.setSom(S.som); salvarPrefs(); render(false); if (S.som) sfx.somEscolha(); return; }
       if (a === 'sair') { registrarAbandono(); S.partida = null; S.jornada = null; sfx.somClique(); irPara('temas'); return; }
-      if (a === 'iniciar') { sfx.somClique(); irPara('temas'); return; }
+      if (a === 'iniciar') {
+        sfx.somClique();
+        // Popup só na primeira entrada da visita e enquanto houver tema por jogar.
+        if (!S.popupVisto && temasQueFaltam().length) abrirPopup();
+        irPara('temas');
+        return;
+      }
+      if (a === 'fecharPopup') { fecharPopup(); return; }
+      if (a === 'faltam') { sfx.somClique(); fecharPopup(false); iniciarJornada(temasQueFaltam()); return; }
       if (a === 'todos') { sfx.somClique(); iniciarJornada(TEMAS.map(t => t.id)); return; }
+      if (a === 'rapido') { sfx.somClique(); fecharPopup(false); iniciarJornada([...TEMAS_RAPIDO]); return; }
       if (a === 'proximoTema') {
         const j = S.jornada;
         if (!j) return;
@@ -586,22 +691,7 @@ function ligar() {
         sfx.somFim(); irPara('fim');
         return;
       }
-      if (a === 'compartilhar') {
-        const {feitos, lula, total} = placarSessao();
-        if (!total) return;
-        const r = feitos[0].r;
-        const msg = total > 1
-          ? `Joguei o Vire a Carta e estou mais para o Lula em ${lula} de ${total} temas. Faça o seu: ${location.origin}`
-          : r.vencedor
-            ? `Joguei o Vire a Carta: em ${feitos[0].tema.nome}, estou mais para ${EQUIPES[r.vencedor].nome} (${r.pct}%). Faça o seu: ${location.origin}`
-            : `Joguei o Vire a Carta e acertei ${S.acertos} de ${S.cartas} propostas. Faça o seu: ${location.origin}`;
-        const alvo = document.getElementById('sharemsg');
-        navigator.clipboard?.writeText(msg).then(
-          () => { if (alvo) alvo.textContent = 'Resultado copiado!'; },
-          () => { if (alvo) alvo.textContent = msg; }
-        ) ?? (alvo && (alvo.textContent = msg));
-        return;
-      }
+      if (a === 'compartilhar') { compartilharJogo(S.tela); return; }
       if (a === 'proxima' && p) {
         sfx.somClique();
         S.partida = avancar(p, {tipo: 'proxima'});
@@ -621,14 +711,36 @@ function ligar() {
   };
 }
 
+/* ================= compartilhar ================= */
+// Texto neutro, que desperta curiosidade: chega bem até em quem ainda não decidiu.
+const TEXTO_CONVITE = 'Fiz um teste às cegas comparando as propostas do Lula e do Flávio para presidente. Faz e me conta o que deu:';
+
+// No celular abre o menu de compartilhar do aparelho (WhatsApp etc.); senão, copia o convite.
+function compartilharJogo(onde: string) {
+  registrar('compartilhar', {onde});
+  const alvo = document.getElementById('sharemsg');
+  const avisar = (t: string) => { if (alvo) alvo.textContent = t; };
+  const copiar = () => navigator.clipboard?.writeText(`${TEXTO_CONVITE} ${JOGO_URL}`).then(
+    () => avisar('Convite copiado! É só colar no WhatsApp.'),
+    () => avisar(`${TEXTO_CONVITE} ${JOGO_URL}`)
+  ) ?? avisar(`${TEXTO_CONVITE} ${JOGO_URL}`);
+  if (navigator.share) {
+    navigator.share({title: 'Vire a Carta', text: TEXTO_CONVITE, url: JOGO_URL})
+      .catch(e => { if ((e as DOMException).name !== 'AbortError') copiar(); });
+  } else {
+    copiar();
+  }
+}
+
 /* ================= música ================= */
 // Toca em todo o jogo: mais alta na tela inicial, baixinha durante a partida e quase
 // muda enquanto o vídeo de um candidato está tocando. O volume passa por um GainNode
 // (Web Audio) porque o Safari do iPhone ignora a propriedade volume do <audio>.
-const musica = new Audio(`${import.meta.env.BASE_URL}audio/musica-inicio.m4a`);
+const musica = new Audio(`${import.meta.env.BASE_URL}audio/musica-inicio.m4a?v=2`);
 musica.loop = true;
 musica.preload = 'auto';
-const VOLUME = {inicio: 0.45, jogo: 0.14, video: 0.03};
+// Trilha "Vire a Carta — Arena" (Suno): tela inicial mais baixa que a trilha anterior.
+const VOLUME = {inicio: 0.28, jogo: 0.18, video: 0.04};
 
 let ctxAudio: AudioContext | null = null;
 let ganho: GainNode | null = null;

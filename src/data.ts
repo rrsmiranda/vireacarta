@@ -15,7 +15,7 @@ export interface Carta {
   texto: string;
   tema: Tema;
   equipe: Equipe;
-  /** Páginas do programa oficial; a primeira é a do link. */
+  /** Páginas do programa oficial onde a proposta está. */
   paginas: number[];
   /** Resumo curto mostrado na revelação. */
   resumo: string;
@@ -31,13 +31,14 @@ export const EQUIPES: Record<Equipe, {nome: string; curto: string}> = {
   orbita: {nome: 'Flávio Bolsonaro', curto: 'FLÁVIO BOLSONARO'}
 };
 
-/* Programas oficiais no TSE; `#page=N` abre na página da proposta. */
+/* Programas oficiais no TSE. O link abre o arquivo completo; a página da proposta
+   aparece no botão ("Programa oficial · p. N") para a pessoa conferir. */
 export const PROGRAMAS: Record<Equipe, string> = {
   aurora: 'https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/proposta-pt/@@display-file/file/proposta-pt.pdf',
   orbita: 'https://www.tse.jus.br/eleicoes/eleicoes-2026-content/arquivos/proposta-pl/@@display-file/file/proposta-pl.pdf'
 };
 
-export const linkPrograma = (c: Carta): string => `${PROGRAMAS[c.equipe]}#page=${c.paginas[0]}`;
+export const linkPrograma = (c: Carta): string => PROGRAMAS[c.equipe];
 export const rotuloPaginas = (c: Carta): string => `p. ${c.paginas.join(' e ')}`;
 
 export interface InfoTema {
@@ -49,6 +50,16 @@ export interface InfoTema {
   icone: string;
   /** Comparação às cegas no fim do tema: um caminho de cada candidato. */
   comparacao: Record<Equipe, string>;
+  /** "O que está em jogo para você": o que o plano do Lula garante e o que o do
+      Flávio diz sobre o mesmo ponto. Só entra o que foi conferido no PDF do Flávio. */
+  emJogo: EmJogo[];
+}
+
+export interface EmJogo {
+  /** O que a pessoa ganha, em linguagem do dia a dia. */
+  item: string;
+  lula: string;
+  flavio: string;
 }
 
 /* Ordem da jornada completa: temas fortes no começo e no fim. */
@@ -58,42 +69,66 @@ export const TEMAS: InfoTema[] = [
     comparacao: {
       aurora: 'Fim da escala 6x1: jornada de 40 horas semanais, com o mesmo salário.',
       orbita: 'Trabalhador e empresa negociam a jornada e as condições direto, com jornada flexível.'
-    }
+    },
+    emJogo: [
+      {item: 'Folga de 2 dias sem perder salário', lula: 'Fim da escala 6x1 e jornada de 40 horas (p. 75)', flavio: 'Não está no plano; propõe negociar a jornada direto com a empresa (p. 44)'},
+      {item: 'Salário mínimo com aumento real', lula: 'Continua a valorização do mínimo (p. 74)', flavio: 'Não está no plano'}
+    ]
   },
   {
     id: 'bolso', nome: 'Seu bolso', subtitulo: 'Economia e custo de vida', icone: 'economia',
     comparacao: {
       aurora: 'Isentar do Imposto de Renda quem ganha até R$ 5 mil, com a conta paga por quem ganha mais de R$ 600 mil por ano.',
       orbita: 'Cortar ministérios, cargos e despesas da máquina pública para reduzir os impostos de quem produz.'
-    }
+    },
+    emJogo: [
+      {item: 'Imposto de Renda zero para quem ganha até R$ 5 mil', lula: 'Isenção aprovada e mantida (p. 19)', flavio: 'O plano não fala do Imposto de Renda; propõe rever a reforma tributária (p. 71)'},
+      {item: 'Botijão de gás de graça para quem tem baixa renda', lula: 'Gás do Povo para 15 milhões de famílias (p. 66)', flavio: 'Não está no plano'}
+    ]
   },
   {
     id: 'seguranca', nome: 'Segurança', icone: 'seguranca',
     comparacao: {
-      aurora: 'Asfixiar o dinheiro das facções, controlar armas e munições e integrar as polícias num sistema único.',
+      aurora: 'Atacar o dinheiro das facções, que já perderam R$ 35,8 bilhões desde 2023, controlar armas e ampliar as câmeras corporais nas polícias.',
       orbita: 'Construir presídios no modelo de El Salvador e abater quem estiver armado com fuzil.'
-    }
+    },
+    emJogo: [
+      {item: 'Controle de armas e munições', lula: 'Mantido, com mais fiscalização (p. 28)', flavio: 'Não está no plano'},
+      {item: 'Câmeras corporais nas polícias', lula: 'Uso ampliado, com padrão nacional (p. 30)', flavio: 'Não está no plano; propõe reconhecimento facial com 1 milhão de câmeras nas ruas (p. 15)'}
+    ]
   },
   {
     id: 'saude', nome: 'Saúde', icone: 'saude',
     comparacao: {
       aurora: 'SUS público e remédio de graça: Farmácia Popular 100% gratuita e rede pública de tratamento do câncer.',
       orbita: 'Comprar serviços e exames da rede privada, nos horários ociosos, para atender pacientes do SUS.'
-    }
+    },
+    emJogo: [
+      {item: 'Remédio de graça na farmácia', lula: 'Farmácia Popular 100% gratuita, com 41 itens (p. 36)', flavio: 'O plano não cita a Farmácia Popular; propõe entrega de remédio em casa (p. 38)'},
+      {item: 'Médico perto de casa nas cidades que mais precisam', lula: 'Mais Médicos mantido (p. 35)', flavio: 'Não está no plano'}
+    ]
   },
   {
     id: 'educacao', nome: 'Educação', icone: 'educacao',
     comparacao: {
       aurora: 'Expandir a escola pública: mais institutos federais no interior e Pé-de-Meia para o jovem não largar os estudos.',
       orbita: 'Onde faltar vaga pública, dar voucher para matricular em escola ou creche particular credenciada.'
-    }
+    },
+    emJogo: [
+      {item: 'Poupança para o jovem terminar o ensino médio', lula: 'Pé-de-Meia mantido e fortalecido (p. 32)', flavio: 'Não está no plano'},
+      {item: 'Vaga em escola pública', lula: 'Mais institutos federais no interior e nas periferias (p. 33)', flavio: 'Onde faltar vaga, voucher para escola particular (p. 36)'}
+    ]
   },
   {
     id: 'protecao', nome: 'Proteção e democracia', icone: 'democracia',
     comparacao: {
-      aurora: 'Regular as redes e plataformas para impedir que espalhem desinformação, ódio e violência contra mulheres.',
-      orbita: 'Acabar com as estruturas do governo criadas para tratar desinformação, vistas como risco de censura.'
-    }
+      aurora: 'Concluir 30 Casas da Mulher Brasileira e manter o Bolsa Família com benefício extra para cada criança.',
+      orbita: 'Tratar o programa social como "ponto de partida", dando ao beneficiário prioridade em vagas de emprego.'
+    },
+    emJogo: [
+      {item: 'Mulher ganhando o mesmo que o homem', lula: 'Planos de igualdade salarial obrigatórios nas empresas (p. 75)', flavio: 'Não está no plano'},
+      {item: 'Proteção contra fake news e discurso de ódio', lula: 'Regular as plataformas digitais (p. 16)', flavio: 'Propõe acabar com as estruturas contra a desinformação (p. 66)'}
+    ]
   }
 ];
 

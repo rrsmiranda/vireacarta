@@ -19,14 +19,14 @@ test('baralho v2: 36 cartas em 6 temas, 6 por tema (4 do Lula e 2 do Flávio), i
   assert.ok(CARTAS.every(c => c.texto.length > 10 && c.resumo.length > 40));
 });
 
-test('cada carta aponta para a página do programa oficial no TSE', () => {
+test('cada carta aponta para o programa oficial no TSE e indica a página', () => {
   const maxPag = {aurora: 84, orbita: 76};
   for (const c of CARTAS) {
     assert.ok(c.paginas.length > 0 && c.paginas.every(n => n >= 1 && n <= maxPag[c.equipe]), `carta ${c.id}`);
-    assert.match(linkPrograma(c), /^https:\/\/www\.tse\.jus\.br\/.+\.pdf#page=\d+$/);
+    assert.match(linkPrograma(c), /^https:\/\/www\.tse\.jus\.br\/.+\.pdf$/);
   }
-  assert.ok(linkPrograma(CARTAS.find(c => c.id === 1)!).includes('proposta-pt.pdf#page=75'));
-  assert.ok(linkPrograma(CARTAS.find(c => c.id === 5)!).includes('proposta-pl.pdf#page=44'));
+  assert.ok(linkPrograma(CARTAS.find(c => c.id === 1)!).endsWith('proposta-pt.pdf'));
+  assert.ok(linkPrograma(CARTAS.find(c => c.id === 5)!).endsWith('proposta-pl.pdf'));
   assert.ok(Object.keys(FONTES).every(id => CARTAS.some(c => c.id === Number(id))), 'fonte sem carta');
   assert.ok(CARTAS.flatMap(fontesDa).every(l => l.url.startsWith('https://') && l.veiculo && ['plano', 'resultado', 'critica'].includes(l.tipo)));
   assert.equal(CARTAS.filter(c => fontesDa(c).length === 0).length, 0, 'todas as cartas com imprensa');
@@ -188,4 +188,11 @@ test('fluxo direto de opinião e personagem conclui 36 cartas com pontuação ú
   assert.equal(p.fim, true);
   assert.equal(p.acertos, 18);
   assert.equal(p.pontos, 180);
+});
+
+test('"O que está em jogo": 2 itens por tema, com página do plano do Lula', () => {
+  for (const t of TEMAS) {
+    assert.equal(t.emJogo.length, 2, t.id);
+    assert.ok(t.emJogo.every(l => l.item && /\(p\. \d+\)$/.test(l.lula) && l.flavio), t.id);
+  }
 });

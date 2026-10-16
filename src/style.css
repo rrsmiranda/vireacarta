@@ -752,3 +752,64 @@ select, input[type="text"] {
 .ptipo-resultado { background: color-mix(in srgb, var(--ok) 25%, transparent); color: var(--ok); }
 .ptipo-critica { background: color-mix(in srgb, var(--warn) 22%, transparent); color: var(--warn); }
 .res-lista .selo { font-size: 12px; }
+
+/* ===== v2: teste rápido, "o que está em jogo" e compartilhar ===== */
+.btn-rapido { margin-top: 4px; }
+.rapido-sub { margin: -6px 0 4px; text-align: center; font-size: 13px; font-weight: 700; color: var(--ink); text-shadow: 0 1px 2px #0a1729; }
+.em-jogo {
+  display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 18px;
+  background: linear-gradient(160deg, #293b52f5, #17283df5); border: 1.5px solid color-mix(in srgb, var(--gold) 55%, transparent);
+}
+.em-jogo h3 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 20px; color: var(--gold); text-align: center; }
+.em-jogo ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.em-jogo li { display: flex; flex-direction: column; gap: 5px; padding: 10px 12px; border-radius: 12px; background: #ffffff0d; }
+.ej-item { font-size: 15px; }
+.ej-lado { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; line-height: 1.4; }
+.ej-ico { flex: 0 0 auto; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; font-size: 12px; font-weight: 900; }
+.ej-lula .ej-ico { background: var(--ok); color: var(--bg-deep); }
+.ej-lula b { color: color-mix(in srgb, var(--lula) 50%, #fff); }
+.ej-flavio { color: var(--muted); }
+.ej-flavio .ej-ico { background: #ffffff26; color: var(--ink); }
+.ej-nota { margin: 0; font-size: 11.5px; color: var(--muted); text-align: center; }
+.mudar { margin: 0; text-align: center; font-size: 14.5px; font-style: italic; color: var(--ink); text-shadow: 0 1px 2px #0a1729; }
+.btn-share { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.btn-share svg { width: 24px; height: 24px; flex: 0 0 auto; }
+.share-button {
+  position: absolute; top: max(8px, env(safe-area-inset-top)); right: 54px;
+  width: 44px; height: 44px; display: grid; place-items: center; z-index: 2;
+  background: var(--surface); border: 1px solid #ffffff30; border-radius: 14px; color: var(--ink);
+}
+.share-button svg { width: 22px; height: 22px; }
+.share-inline { align-self: center; padding: 8px 14px; font-weight: 800; font-size: 14px; color: var(--orbita); text-decoration: underline; }
+.btn-share { font-size: clamp(17px, 4.9vw, 22px); white-space: nowrap; }
+
+/* ===== v2: popup do teste rápido ===== */
+.popup-fundo {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
+  background: #050c18cc; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px);
+  animation: fadeIn .2s ease-out both;
+}
+.popup {
+  position: relative; width: min(100%, 400px); display: flex; flex-direction: column; align-items: center; gap: 12px;
+  padding: 28px 20px 18px; border-radius: 24px; text-align: center;
+  background: linear-gradient(165deg, #2b4060, #15253a); border: 2px solid var(--gold);
+  box-shadow: 0 0 40px color-mix(in srgb, var(--gold) 35%, transparent), 0 20px 50px #000a;
+  animation: popIn .35s cubic-bezier(.2, 1.4, .4, 1) both;
+}
+.popup h2 { margin: 0; font-family: var(--f-display); font-weight: 400; font-size: 27px; line-height: 1.1; color: var(--gold); }
+.popup p { margin: 0; font-size: 15.5px; line-height: 1.45; color: var(--ink); }
+.popup .btn-main { width: 100%; margin-top: 4px; }
+.popup-ico { font-size: 34px; line-height: 1; }
+.popup-x {
+  position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; display: grid; place-items: center;
+  border-radius: 12px; font-size: 18px; color: var(--muted);
+}
+.popup-outro { padding: 8px 14px; font-weight: 700; font-size: 14.5px; color: var(--muted); text-decoration: underline; }
+.btn-rapido-mini { border-color: color-mix(in srgb, var(--gold) 70%, transparent); color: var(--gold); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes popIn { from { opacity: 0; transform: scale(.85); } to { opacity: 1; transform: none; } }
+.reduce .popup, .reduce .popup-fundo { animation: none; }
+.popup .btn-main { font-size: clamp(19px, 5.4vw, 23px); white-space: nowrap; }
+
+/* Títulos e perguntas recebem o foco automático (leitor de tela) sem contorno. */
+[tabindex="-1"]:focus { outline: none; }

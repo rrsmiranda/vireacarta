@@ -117,6 +117,7 @@ export const FONTES: Record<number, Link[]> = {
     {veiculo: "Bahia Notícias / Folha", tipo: 'critica', url: "https://www.bahianoticias.com.br/folha/noticia/406806-flavio-bolsonaro-encontra-ministro-de-bukele-ignora-violacoes-e-diz-que-ha-poucos-presos-no-brasil"},
   ],
   24: [
+    {veiculo: "Band", tipo: 'plano', url: "https://www.band.com.br/politica/eleicoes/2026/flavio-propoe-limitar-stf-reduzir-maioridade-e-acabar-com-reeleicao-202608131847"},
     {veiculo: "A Terra é Redonda", tipo: 'critica', url: "https://aterraeredonda.com.br/o-sistema-unico-de-seguranca-publica/"},
   ],
   25: [
