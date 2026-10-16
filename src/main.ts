@@ -52,7 +52,7 @@ const say = (t: string) => { live.textContent = ''; setTimeout(() => { live.text
 
 /* ================= avatares ================= */
 // Vídeos de corpo inteiro exibidos na revelação, no lugar da foto.
-const VIDEOS: Partial<Record<Equipe, string>> = {aurora: 'personagem_aurora.mp4?v=2', orbita: 'personagem_orbita.mp4'};
+const VIDEOS: Partial<Record<Equipe, string>> = {aurora: 'personagem_aurora.mp4?v=3', orbita: 'personagem_orbita.mp4'};
 
 function frameAvatar(equipe: Equipe, corpoInteiro = false): string {
   const foto = `${import.meta.env.BASE_URL}art/personagem_${equipe}.jpeg?v=2`;
